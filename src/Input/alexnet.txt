@@ -1,0 +1,17 @@
+% Input ( 3D_shape )
+% Dense ( size  activation:"relu"/"tanh"/"sigmoid"/"softmax" )
+% padding / stride after activation
+% AlexNet
+
+Input 227 227 3
+Conv2D 3 11 11 96 relu 0 4
+Pool 96 3 3 96 0 2
+Conv2D 96 5 5 256 relu 2 1
+Pool 256 3 3 256 0 2
+Conv2D 256 3 3 384 relu 1 1
+Conv2D 384 3 3 384 relu 1 1
+Conv2D 384 3 3 256 relu 1 1
+Pool 256 3 3 256 0 2
+Dense 9216 4096 relu
+Dense 4096 4096 relu
+Dense 4096 10 linear
