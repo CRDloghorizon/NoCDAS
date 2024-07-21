@@ -103,56 +103,21 @@
 #define VC_PER_VN  4  ///<1 A: control URS (control all in other 3 modes)
 #define VC_PRIORITY_PER_VN 0 ///< B: only control LCS
 #define STARVATION_LIMIT 20 // forbid starvation (no priority packet must go after 20)
-
-//#define REAL_TRAFFIC ///<another mode, independent with VC mode
 #define LCS_URS_TRAFFIC
-//#define LCS_GRS_TRAFFIC
-
 #define INPORT_FLIT_BUFFER_SIZE 4; // number 4
-//#define OUTPORT_FLIT_BUFFER_SIZE 2; // number 2
 #define FLIT_LENGTH 32 // byte 32*8=256bit  //32
-#define INFINITE 10000    // changed from 10000
-#define INFINITE1 10000  //added for flit buffer (10000)
-
-#define BLOCK_SIZE 16   // byte, used in TDM 16*8=128bit
-
-#define S_TSHR_DEPTH 16 //slave TSHR table ordering register 40
-
-#define OFF_CHIP_MEMORY_DELAY 30 //
-
-#define CACHE_DELAY 1  // simulate cache memory access delay (5ns)
-
-#define MASTER_LIST_RECORD_DELAY 1  //
-#define MASTER_LIST_REFER_DELAY 0  //
-#define SLAVE_LIST_REFER_DEALY 0  //
-                                     ///< axi4 data to message  message (in NI) to (packer in VC SIGNAL/TDM)
-#define DELAY_FROM_P_TO_M  0  // packet/signal to message conversion time; AXI4 to message / message to AXI4 conversion time is 1 by default
-#define DELAY_FROM_M_TO_P  0  // message to packet/signal conversion time
-
-#define PRINT 100000
-
-#define ID_RATIO 0.25  //
-#define CYCLE_LOOP 100 // 100
-#define SOURCE 0
-
-//#define WITHOUT_MY_MECHANISM
-
-
-#define SLOT_SIZE 64
-#define SLOT_NUM SLOT_SIZE   // number
-
-#define SLOT_LENGTH 1 // cycle(s)
+#define INFINITE 10000    // added for in port and out port buffer
+#define INFINITE1 10000  // added for flit buffer (10000)
+#define CACHE_DELAY 1  // simulate cache memory access delay (5ns = 1 clock cycle under 200 MHz frequency)
 #define LINK_TIME 2
-
 #define DISTRIBUTION_NUM 20
 
-
+#define PRINT 1000000 // define the prining steps in cycle
 
 struct GlobalParams {
 	static char NNmodel_filename[128];
 	static char NNweight_filename[128];
 	static char NNinput_filename[128];
-
 };
 
 

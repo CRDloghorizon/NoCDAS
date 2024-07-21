@@ -119,7 +119,7 @@ int main(int arg_num, char *arg_vet[]) {
 
 		vcNetwork->runOneStep();
 
-		if(cycles%1000000==0) {cout << "Running cycles: " << cycles << endl;}
+		if(cycles%PRINT==0) {cout << "Running cycles: " << cycles << endl;}
 	}
 
 #ifdef fulleval
