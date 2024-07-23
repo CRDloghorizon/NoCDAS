@@ -1,0 +1,30 @@
+% Input ( 3D_shape )
+% Dense ( size  activation:"relu"/"tanh"/"sigmoid"/"softmax" )
+% activation / padding / stride 
+% DarkNet-19
+
+Input 64 64 3
+Conv2D 3 3 3 32 relu 1 1
+Pool 32 2 2 32 0 2
+Conv2D 32 3 3 64 relu 1 1
+Pool 64 2 2 64 0 2
+Conv2D 64 3 3 128 relu 1 1
+Conv2D 128 3 3 64 relu 1 1
+Conv2D 64 3 3 128 relu 1 1
+Pool 128 2 2 128 0 2
+Conv2D 128 3 3 256 relu 1 1
+Conv2D 256 3 3 128 relu 1 1
+Conv2D 128 3 3 256 relu 1 1
+Pool 256 2 2 256 0 2
+Conv2D 256 3 3 512 relu 1 1
+Conv2D 512 3 3 256 relu 1 1
+Conv2D 256 3 3 512 relu 1 1
+Conv2D 512 3 3 256 relu 1 1
+Conv2D 256 3 3 512 relu 1 1
+Pool 512 2 2 512 0 2
+Conv2D 512 3 3 1024 relu 1 1
+Conv2D 1024 3 3 512 relu 1 1
+Conv2D 512 3 3 1024 relu 1 1
+Conv2D 1024 3 3 512 relu 1 1
+Conv2D 512 3 3 1024 relu 1 1
+Conv2D 1024 1 1 1000 relu 0 1
