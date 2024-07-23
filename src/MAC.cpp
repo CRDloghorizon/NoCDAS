@@ -173,10 +173,12 @@ void MAC::runOneStep()
 #ifdef Countlatency
 			//statistics
 			stats1 = (packet_id + tmp_request)*3;
-			DNN_latency[stats1][0] = net->c_layer;
-			DNN_latency[stats1][1] = 0;
-			DNN_latency[stats1][2] = id;
-			DNN_latency[stats1][3] = pecycle;
+			if(stats1 < CountNum) {
+				DNN_latency[stats1][0] = net->c_layer;
+				DNN_latency[stats1][1] = 0;
+				DNN_latency[stats1][2] = id;
+				DNN_latency[stats1][3] = pecycle;
+			}
 #endif
 		}
 		else if(selfstatus == 2)
@@ -275,7 +277,9 @@ void MAC::runOneStep()
 #ifdef Countlatency
 				//statistics
 				stats1 = (packet_id + tmp_request)*3 + 2;
-				DNN_latency[stats1][3] = pecycle;
+				if(stats1 < CountNum) {
+					DNN_latency[stats1][3] = pecycle;
+				}
 #endif
 				//packet_id++;
 				return;
@@ -326,7 +330,9 @@ void MAC::runOneStep()
 #ifdef Countlatency
 			//statistics
 			stats1 = (packet_id + tmp_request)*3 + 2;
-			DNN_latency[stats1][3] = pecycle;
+			if(stats1 < CountNum) {
+				DNN_latency[stats1][3] = pecycle;
+			}
 #endif
 			//packet_id++;
 #endif
@@ -340,7 +346,8 @@ void MAC::runOneStep()
 						this->tmpch = this->n_tmpch;
 						inject(2, dest_mem_id, 1, outfeature, net->vcNetwork->NI_list[NI_id], packet_id + tmp_request, id);
 #ifdef Countlatency
-						DNN_latency[(packet_id + tmp_request)*3+2][6] = pecycle;
+						if((packet_id + tmp_request)*3+2 < CountNum) {
+						DNN_latency[(packet_id + tmp_request)*3+2][6] = pecycle;}
 #endif
 						//packet_id++;
 					}
@@ -351,10 +358,12 @@ void MAC::runOneStep()
 #ifdef Countlatency
 				//statistics
 				stats1 = (packet_id + tmp_request)*3 + 2;
-				DNN_latency[stats1][0] = net->c_layer;
-				DNN_latency[stats1][1] = 2;
-				DNN_latency[stats1][2] = id;
-				DNN_latency[stats1][3] = pecycle;
+				if(stats1 < CountNum) {
+					DNN_latency[stats1][0] = net->c_layer;
+					DNN_latency[stats1][1] = 2;
+					DNN_latency[stats1][2] = id;
+					DNN_latency[stats1][3] = pecycle;
+				}
 #endif
 				//packet_id++;
 			}

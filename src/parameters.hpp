@@ -20,7 +20,8 @@
 #define only3type	//only 3 packets per neuron task
 //#define newpooling	//new pooling in router near memory
 #define outPortNoInfinite // back pressure from VC Router Out Port
-//#define Countlatency		// open recording of packet level delay
+//#define Countlatency		// open recording of packet level trace and latency
+//#define CountNum 30000    // set the maximum number of output packet traces
 
 /*******************************/
 #define MemNode2  // 2 MC cores (for 4*4)

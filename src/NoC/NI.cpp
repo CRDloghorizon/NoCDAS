@@ -509,7 +509,9 @@ void NI::dequeue(){
 		  assert(vcRouter != NULL);
 #ifdef Countlatency
 		  //statistics for head flit in all types
-		  DNN_latency[flit->packetid * 3 + flit->packet->message.type][5] = cycles;
+		  if (flit->packetid * 3 + flit->packet->message.type < CountNum){
+			DNN_latency[flit->packetid * 3 + flit->packet->message.type][5] = cycles;
+		  }
 #endif
 #ifdef SHARED_VC
 		  if(flit->packet->signal->QoS == 1){
@@ -538,8 +540,10 @@ void NI::inputCheck(){
 		  if (flit->type == 1 || flit->type == 10)
 		  {
 			  //statistics for tail flit arrived at NI in all types
-			  if(DNN_latency[flit->packetid * 3 + flit->packet->message.type][6] == 0)
-			  {DNN_latency[flit->packetid * 3 + flit->packet->message.type][6] = cycles;}
+			  if(flit->packetid * 3 + flit->packet->message.type < CountNum){
+			  	if(DNN_latency[flit->packetid * 3 + flit->packet->message.type][6] == 0)
+			  	{DNN_latency[flit->packetid * 3 + flit->packet->message.type][6] = cycles;}
+			  }
 		  }
 #endif
 		  /// normal check

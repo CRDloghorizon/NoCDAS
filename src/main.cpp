@@ -1,7 +1,7 @@
 //======================================================================================
 // Name        : NoCDAS
 // Author      : loghorizon
-// Version     : 2022 Dec
+// Version     : 2024 Jul
 // Copyright   : KTH
 // Description : A Cycle-Accurate NoC-based Deep Neural Network Accelerator Simulator
 //======================================================================================
@@ -80,8 +80,8 @@ int main(int arg_num, char *arg_vet[]) {
 	// statistics
 	// refer to output neuron id (tmpch * ox * oy + tmpm)
 #ifdef Countlatency
-	DNN_latency.resize(30000);
-	for(int i=0;i<30000;i++){
+	DNN_latency.resize(CountNum);
+	for(int i=0;i<CountNum;i++){
 		DNN_latency[i].assign(8, 0);
 	}
 #endif
@@ -135,8 +135,10 @@ int main(int arg_num, char *arg_vet[]) {
 	cout << "Packet id: " << packet_id << endl;
 
 #ifdef Countlatency
+	int maxoutnum = CountNum;
 	ofstream outfile_delay("./src/output/lenetdelay.txt", ios::out);
-	for(int i=0; i<packet_id*3; i++){
+	if (packet_id*3 <= CountNum) {maxoutnum = packet_id*3;}
+	for(int i=0; i<maxoutnum; i++){
 	  for(int j=0; j<8; j++){
 		  outfile_delay << DNN_latency[i][j] << ' ';
 	  }

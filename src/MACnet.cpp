@@ -518,12 +518,15 @@ void MACnet::runOneStep()
 
 #ifdef Countlatency
 			//statistics
-			DNN_latency[pid*3][4] = tmpPacket->send_out_time;
-			DNN_latency[pid*3][7] = cycles;
-
-			DNN_latency[pid*3+1][1] = 1;
-			DNN_latency[pid*3+1][2] = src_mac;
-			DNN_latency[pid*3+1][3] = cycles;
+			if(pid*3 < CountNum) {
+				DNN_latency[pid*3][4] = tmpPacket->send_out_time;
+				DNN_latency[pid*3][7] = cycles;
+			}
+			if(pid*3+1 < CountNum) {
+				DNN_latency[pid*3+1][1] = 1;
+				DNN_latency[pid*3+1][2] = src_mac;
+				DNN_latency[pid*3+1][3] = cycles;
+			}
 #endif
 			// cout << "MEM " << tmpPacket->message.destination << " receive type " << tmpPacket->message.type << " from MAC " << src << endl;
 			tmpMAC = MAC_list[src_mac];
@@ -588,7 +591,9 @@ void MACnet::runOneStep()
 					MAC_list[mem_id]->inject(1,src,tmpMAC->inbuffer.size(),o_fn,vcNetwork->NI_list[mem_id],pid,src_mac);
 
 #ifdef Countlatency
-					DNN_latency[pid*3+1][0] = (tmpMAC->inbuffer.size()*2 + 1)/FLIT_LENGTH + 1;
+					if(pid*3+1 < CountNum) {
+						DNN_latency[pid*3+1][0] = (tmpMAC->inbuffer.size()*2 + 1)/FLIT_LENGTH + 1;
+					}
 #endif
 					//tmpMAC->request = -1;
 					//return;
@@ -666,11 +671,13 @@ void MACnet::runOneStep()
 
 #ifdef Countlatency
 			//statistics
-			DNN_latency[pid*3+2][0] = c_layer;
-			DNN_latency[pid*3+2][1] = 2;
-			DNN_latency[pid*3+2][2] = src_mac;
-			DNN_latency[pid*3+2][4] = tmpPacket->send_out_time;
-			DNN_latency[pid*3+2][7] = cycles;
+			if(pid*3+2 < CountNum) {
+				DNN_latency[pid*3+2][0] = c_layer;
+				DNN_latency[pid*3+2][1] = 2;
+				DNN_latency[pid*3+2][2] = src_mac;
+				DNN_latency[pid*3+2][4] = tmpPacket->send_out_time;
+				DNN_latency[pid*3+2][7] = cycles;
+			}
 #endif
 
 			if(this->cnnmodel->all_layer_type[c_layer]=='c'){ // conv
@@ -773,8 +780,10 @@ void MACnet::runOneStep()
 			pid = tmpPacket->message.signal_id;
 
 #ifdef Countlatency
-			DNN_latency[pid*3+1][4] = tmpPacket->send_out_time;
-			DNN_latency[pid*3+1][7] = cycles;
+			if(pid*3 + 1 < CountNum) {
+				DNN_latency[pid*3+1][4] = tmpPacket->send_out_time;
+				DNN_latency[pid*3+1][7] = cycles;
+			}
 #endif
 			//cout << cycles <<" MAC " << src_mac <<  " receive type " << tmpPacket->message.type << " from MEM " << tmpPacket->message.source_id << endl;
 			tmpMAC = MAC_list[src_mac];
