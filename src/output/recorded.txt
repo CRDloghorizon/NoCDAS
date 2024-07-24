@@ -1,0 +1,9 @@
+// trace file statistics, ID is pid*3 + [0,1,2]
+DNN_latency[pid*3][0] = c_layer; c_layer for packet #1 and #3, response flag (4) for packet #2
+DNN_latency[pid*3][1] = 0; packet type (0,1,2)
+DNN_latency[pid*3][2] = src_mac; ID of the source
+DNN_latency[pid*3][3] = pecycle; at source (PE/MC) send out
+DNN_latency[pid*3][4] = tmpPacket->send_out_time; at source (PE/MC) NI received 
+DNN_latency[pid*3][5] = cycles; at source (PE/MC) NI for dequeue and flitize
+DNN_latency[pid*3][6] = cycles; at destination (MC/PE) NI for input check and de-flitize
+DNN_latency[pid*3][7] = cycles; at destination (MC/PE) received
