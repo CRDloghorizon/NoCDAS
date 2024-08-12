@@ -291,7 +291,7 @@ void MAC::runOneStep()
 			if ((fn % 4) == 0) //linear
 			{
 				selfstatus = 4; // ready for this computation
-				pecycle = cycles + calctime; // sync cycles
+				pecycle = cycles + calctime - PE_FREQ_RATIO; // sync cycles
 			}
 			else if ((fn % 4) == 1)
 			{
