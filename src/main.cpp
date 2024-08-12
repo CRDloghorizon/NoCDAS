@@ -13,6 +13,7 @@
 #include <iomanip>
 #include <stdio.h>
 #include <string.h>
+#include <chrono>
 #include "parameters.hpp"
 #include "NoC/VCNetwork.hpp"
 #include "MACnet.hpp"
@@ -65,6 +66,8 @@ int main(int arg_num, char *arg_vet[]) {
 
 	cout << "Initialize" << endl;
 	parseCmdLine(arg_num, arg_vet);
+
+	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
 
 	Model* cnnmodel = new Model();
 	cnnmodel->load();
@@ -146,6 +149,8 @@ int main(int arg_num, char *arg_vet[]) {
 	}
 	outfile_delay.close();
 #endif
+	chrono::steady_clock::time_point end = chrono::steady_clock::now();
+	cout << "Execution time (sec) = " <<  (chrono::duration_cast<chrono::microseconds>(end - begin).count()) /1000000.0  << endl;
 
 	cout << "!!END!!" << endl;
 	delete macnet;
