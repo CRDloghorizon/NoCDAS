@@ -101,10 +101,35 @@ bool Model::load()// load model
 				temp_layer_size.push_back(temp_z);
 				temp_layer_size.push_back(temp_pad);
 				temp_layer_size.push_back(temp_std);
+				temp_std = 1;
+				temp_layer_size.push_back(temp_std); // max pooling
 				layernum++;
 				all_layer_size.push_back(temp_layer_size);
 				all_Nue+=temp;
-				cout<<setw(8)<<all_layer_type.size()-1<<" |"<<       setw(8)<<"Pool"<<" |"<<setw(8)<<temp_layer_size[0]<<" |"
+				cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(4)<<"Max Pool"<<" |"<<setw(8)<<temp_layer_size[0]<<" |"
+					<<setw(8)<<temp_layer_size[1]<<" |"<<setw(8)<<temp_layer_size[2]<<" |"<<setw(8)<<temp_layer_size[3]<<" |"
+					<<                   setw(10)<<" |"<<                   setw(10)<<" |"<<        setw(8) << temp_std<<" |"
+					<<        setw(8)<< temp_pad <<" |"<<                   setw(10)<<" |"<<endl;
+			}
+			else if (!strcmp( temp_type, "AvgPool"))
+			{
+				all_layer_type.push_back('p');
+				char line[256];
+				fin.getline(line, sizeof(line) - 1);
+				sscanf(line, "%d %d %d %d %d %d", &temp_i, &temp_c_x, &temp_c_y, &temp_z, &temp_pad, &temp_std); // input channel, Kernel x, Kernel y, output Channel.
+				deque< int > temp_layer_size;
+				temp_layer_size.push_back(temp_i);
+				temp_layer_size.push_back(temp_c_x);
+				temp_layer_size.push_back(temp_c_y);
+				temp_layer_size.push_back(temp_z);
+				temp_layer_size.push_back(temp_pad);
+				temp_layer_size.push_back(temp_std);
+				temp_std = 2;
+				temp_layer_size.push_back(temp_std); // average pooling
+				layernum++;
+				all_layer_size.push_back(temp_layer_size);
+				all_Nue+=temp;
+				cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(4)<<"Avg Pool"<<" |"<<setw(8)<<temp_layer_size[0]<<" |"
 					<<setw(8)<<temp_layer_size[1]<<" |"<<setw(8)<<temp_layer_size[2]<<" |"<<setw(8)<<temp_layer_size[3]<<" |"
 					<<                   setw(10)<<" |"<<                   setw(10)<<" |"<<        setw(8) << temp_std<<" |"
 					<<        setw(8)<< temp_pad <<" |"<<                   setw(10)<<" |"<<endl;

@@ -460,7 +460,8 @@ void MACnet::checkStatus()
 		pad = layer_info[4]; // padding
 		stride = layer_info[5]; // stride
 		w_ch = 0;
-		o_fn = 8; 
+		o_fn = 8; // max pooling
+		if (layer_info[6] == 2) {o_fn = 12;} // average pooling
 		assert((in_ch == o_ch) && "Input channel not correct!");
 		o_x = (in_x + 2*pad - w_x) / stride + 1;
 		o_y = (in_y + 2*pad - w_y) / stride + 1;
@@ -609,7 +610,7 @@ void MACnet::runOneStep()
 					int tmpy = tmpMAC->tmpm / o_x;
 					tmpMAC->inbuffer.clear();
 					// inbuffer: [fn] [map size] [i]
-					tmpMAC->inbuffer.push_back(o_fn); // 8
+					tmpMAC->inbuffer.push_back(o_fn); // 8 or 12 -> max or avg
 					tmpMAC->inbuffer.push_back(w_x * w_y);
 					for (int p=0; p<w_y; p++)
 					{

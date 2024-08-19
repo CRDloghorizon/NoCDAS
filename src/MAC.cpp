@@ -228,7 +228,7 @@ void MAC::runOneStep()
 				infeature.assign(inbuffer.begin() + 2, inbuffer.begin() + 2 + m_size);
 				weight.assign(inbuffer.begin() + 2 + m_size, inbuffer.end()); //w + b
 			}
-			else if (fn == 8) // max pooling [fn] [map size] [i]
+			else if (fn == 8 || fn == 12) // max or avg pooling [fn] [map size] [i]
 			{
 				ch_size = 1;
 				m_size = inbuffer[1];
@@ -270,6 +270,28 @@ void MAC::runOneStep()
 				{
 					if (infeature[j] > outfeature) {outfeature = infeature[j];}
 				}
+				selfstatus = 4; // ready for this computation
+				pecycle = cycles + 1; // sync cycles
+
+				inject(2, dest_mem_id, 1, outfeature, net->vcNetwork->NI_list[NI_id], packet_id + tmp_request, id);
+#ifdef Countlatency
+				//statistics
+				stats1 = (packet_id + tmp_request)*3 + 2;
+				if(stats1 < CountNum) {
+					DNN_latency[stats1][3] = pecycle;
+				}
+#endif
+				//packet_id++;
+				return;
+			}
+			else if (fn == 12) // average pooling
+			{
+				outfeature = infeature[0];
+				for(int j=1; j < m_size; j++)
+				{
+					outfeature = outfeature + infeature[j];
+				}
+				outfeature = outfeature / m_size;
 				selfstatus = 4; // ready for this computation
 				pecycle = cycles + 1; // sync cycles
 

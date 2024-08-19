@@ -16,8 +16,24 @@ The input folder gives the LeNet model file, input file, and weight file for bot
 It also gives the AlexNet and DarkNet model files for RE mode. 
 For DarkNet, run "darknet1.txt" with a 1/16 sampling of the original IFMap size to shorten the running time.
 
+## Configuration
+
 By changing the NoC node configuration macros in src/parameters.hpp, user can test on different NoCs.
 
 By changing the model file names in src/parameters.hpp or through line arguments, user can test on different DNN workloads.
 
 Detailed output logs can be enabled by the 'Countlatency' macro in src/parameters.hpp.
+
+## Input Model Format
+
+Input layer: Input size_x size_y size_channel 
+
+Convolution layer: Conv2D in_channel kernel_x kernel_y out_channel activation padding stride 
+
+Max pooling layer: Pool in_channel kernel_x kernel_y out_channel padding stride 
+
+Average pooling layer: AvgPool in_channel kernel_x kernel_y out_channel padding stride
+
+Fully connected layer: Dense in_size out_size activation
+
+//"activation" is the non-linear activation function: "relu"/"tanh"/"sigmoid"/"linear"

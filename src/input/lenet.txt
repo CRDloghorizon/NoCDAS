@@ -1,5 +1,5 @@
 % Input ( 3D_shape )
-% Dense ( size  activation:"relu"/"tanh"/"sigmoid"/"softmax" )
+% Dense ( size  activation:"relu"/"tanh"/"sigmoid"/"linear" )
 % padding / stride after activation
 % LeNet-5
 
