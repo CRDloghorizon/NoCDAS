@@ -1,9 +1,11 @@
-// trace file statistics, ID is pid*3 + [0,1,2]
-DNN_latency[pid*3][0] = c_layer; c_layer for packet #1 and #3, response flag (4) for packet #2
-DNN_latency[pid*3][1] = 0; packet type (0,1,2)
-DNN_latency[pid*3][2] = src_mac; ID of the source
-DNN_latency[pid*3][3] = pecycle; at source (PE/MC) send out
-DNN_latency[pid*3][4] = tmpPacket->send_out_time; at source (PE/MC) NI received 
-DNN_latency[pid*3][5] = cycles; at source (PE/MC) NI for dequeue and flitize
-DNN_latency[pid*3][6] = cycles; at destination (MC/PE) NI for input check and de-flitize
-DNN_latency[pid*3][7] = cycles; at destination (MC/PE) received
+// Trace file statistics, ID is Packet_id*3 + [0,1,2]
+// Each line contains eight elements.
+// ID is the line number in the trace file, starting at 0.
+DNN_latency[ID][0] = c_layer; c_layer for packet #1 and #3, response flag (4) for packet #2
+DNN_latency[ID][1] = 0; packet type (0,1,2)
+DNN_latency[ID][2] = src_mac; ID of the source node (PE/MC)
+DNN_latency[ID][3] = cycles; clock cycle at source node (PE/MC) send out
+DNN_latency[ID][4] = tmpPacket->send_out_time; clock cycle at source (PE/MC) NI receive 
+DNN_latency[ID][5] = cycles; clock cycle at source (PE/MC) NI for dequeue and flitize
+DNN_latency[ID][6] = cycles; clock cycle at destination (MC/PE) NI for input check and de-flitize
+DNN_latency[ID][7] = cycles; clock cycle at destination (MC/PE) receive
