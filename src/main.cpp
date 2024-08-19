@@ -139,7 +139,7 @@ int main(int arg_num, char *arg_vet[]) {
 
 #ifdef Countlatency
 	int maxoutnum = CountNum;
-	ofstream outfile_delay("./src/output/lenetdelay.txt", ios::out);
+	ofstream outfile_delay("./src/output/lenettrace.txt", ios::out);
 	if (packet_id*3 <= CountNum) {maxoutnum = packet_id*3;}
 	for(int i=0; i<maxoutnum; i++){
 	  for(int j=0; j<8; j++){
