@@ -37,3 +37,16 @@ Average pooling layer: AvgPool in_channel kernel_x kernel_y out_channel padding 
 Fully connected layer: Dense in_size out_size activation
 
 //"activation" is the non-linear activation function: "relu"/"tanh"/"sigmoid"/"linear"
+
+## MC Placement Configuration
+
+Guidance on changing MC placements:
+
+1. In parameters.hpp, activate or create a MemNode Macro. Assign the number of cores (PE_X_NUM, PE_Y_NUM) and routers in NoC (X_NUM, Y_NUM, TOT_NUM).
+
+2. In MAC.hpp, at the beginning of this header file, define the position of MC cores by router ID. For example: const int dest_list[] = {17, 18} means that MC cores are connected to router ID 17, 18.
+
+3. In MAC.cpp, in the initialization function MAC::MAC, define the destination MCs (dest_mem_id) for each PE. This can be done by direct assignment or rule-based assignment. For example:
+  if (xid <= 3) {dest_mem_id = dest_list[0];} else {dest_mem_id = dest_list[1];}
+
+4. Recompile the simulator and run with the new MC placement configuration.
