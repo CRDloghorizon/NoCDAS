@@ -32,6 +32,9 @@
 #elif defined MemNode8
 	#define MEM_NODES 8
 	const int dest_list[] = {17, 18, 21, 22, 41, 42, 45, 46};  // 8*8
+#elif defined MemNode8edge
+	#define MEM_NODES 8
+	const int dest_list[] = {8, 15, 16, 23, 40, 47, 48, 55};  // 8*8 NoC 8 MC on edge
 #elif defined MemNode2
 	#define MEM_NODES 2
 	const int dest_list[] = {9, 10}; // 4*4
