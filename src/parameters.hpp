@@ -37,7 +37,7 @@
 //#define MemNode13  // 13 MC cores (for 10*10 NoC)
 
 //#define MemNode4  // 4 MC cores (for 8*8 NoC)
-
+//#define MemNode8edge  // 8 MC cores (for 8*8 NoC, on the edge of NoC)
 /******************************/
 // Task mapping macros
 //#define rowmapping	//row-major mapping
@@ -62,6 +62,13 @@
 	#define Y_NUM 8
 	#define TOT_NUM 64
 #elif defined MemNode8
+	#define PE_X_NUM 8
+	#define PE_Y_NUM 8
+	//NI size
+	#define X_NUM 8
+	#define Y_NUM 8
+	#define TOT_NUM 64
+#elif defined MemNode8edge
 	#define PE_X_NUM 8
 	#define PE_Y_NUM 8
 	//NI size
