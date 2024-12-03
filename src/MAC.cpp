@@ -56,6 +56,12 @@ MAC::MAC (int t_id, MACnet* t_net, int t_NI_id)
 	} else {
 		dest_mem_id = dest_list[(yid/2) + 4];
 	}
+#elif defined MemNode8edge
+	if (yid <= 3) {
+		dest_mem_id = dest_list[(xid/2)*2]; // left 0 2 4 6
+	} else {
+		dest_mem_id = dest_list[(xid/2)*2 + 1]; // right 1 3 5 7
+	}
 #elif defined MemNode18 // 12*12
 	if (xid <= 3) {
 		dest_mem_id = dest_list[(yid/2)];
