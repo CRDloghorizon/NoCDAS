@@ -33,12 +33,7 @@ MACnet::MACnet (int mac_num, int t_pe_x, int t_pe_y, Model *m, VCNetwork* t_Netw
 	    MAC_list.push_back(nMAC);
 
 	}
-	// connect PEs, need update for NoC
-	// for(int j=0; j < macNum - 1; j++){
-	// 	MAC* self = MAC_list[j];
-	// 	MAC* next = MAC_list[j+1];
-	// 	self->nextMAC = next;
-	// }
+
 
 	// layer 0: input
 	deque<int> layer_info;
