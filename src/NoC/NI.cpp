@@ -60,14 +60,14 @@ NI::NI (int t_id, VCNetwork* t_vcNetwork, int t_vn_num, int t_vc_per_vn, int t_v
   buffer_list.reserve(vn_num*(vc_per_vn+vc_priority_per_vn));
 
   for(int i=0; i<vn_num*vc_per_vn; i++){
-      FlitBuffer * t_flitBuffer = new FlitBuffer(i%vc_per_vn, i/vn_num, i, INFINITE1);
+      FlitBuffer * t_flitBuffer = new FlitBuffer(i%vc_per_vn, i/vc_per_vn, i, INFINITE1);
       buffer_list.push_back(t_flitBuffer);
       out_vc.push_back(-1);
       state.push_back(0);
   }
 
   for(int i=0; i<vn_num*vc_priority_per_vn; i++){
-      FlitBuffer * t_flitBuffer = new FlitBuffer(i%vc_priority_per_vn+vn_num, i/vn_num, i, INFINITE1);
+      FlitBuffer * t_flitBuffer = new FlitBuffer(i%vc_priority_per_vn+vc_per_vn, i/vc_priority_per_vn, i, INFINITE1);
       buffer_list.push_back(t_flitBuffer);
       out_vc.push_back(-1);
       state.push_back(0);

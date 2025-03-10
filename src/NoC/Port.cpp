@@ -23,13 +23,13 @@ Port::Port (int t_id, int t_vn_num, int t_vc_per_vn, int t_vc_priority_per_vn, i
 
    // URS 0~vn_num*vc_per_vn-1;
    for(int i=0; i<vn_num*vc_per_vn; i++){
-       FlitBuffer * t_flitBuffer = new FlitBuffer(i%vc_per_vn, i/vn_num, i, depth);
+       FlitBuffer * t_flitBuffer = new FlitBuffer(i%vc_per_vn, i/vc_per_vn, i, depth);
        buffer_list.push_back(t_flitBuffer);
    }
 
    // LCS vn_num*vc_per_vn~vn_num*(vc_per_vn + vc_priority_per_vn)-1
    for(int i=0; i<vn_num*vc_priority_per_vn; i++){
-       FlitBuffer * t_flitBuffer = new FlitBuffer(i%vc_priority_per_vn+vc_per_vn, i/vn_num, i, depth);
+       FlitBuffer * t_flitBuffer = new FlitBuffer(i%vc_priority_per_vn+vc_per_vn, i/vc_priority_per_vn, i, depth);
        buffer_list.push_back(t_flitBuffer);
    }
 }
