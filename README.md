@@ -52,6 +52,6 @@ Guidance on changing MC placements:
 4. Recompile the simulator and run with the new MC placement configuration.
 
 ## Reference
-Wenyao Zhu, Yizhi Chen, and Zhonghai Lu, “NoCDAS: A Cycle-Accurate NoC-Based Deep Neural Network Accelerator Simulator”, ACM Transactions on Modeling and Computer Simulation, April 2025. https://doi.org/10.1145/3729169
+Wenyao Zhu, Yizhi Chen, and Zhonghai Lu, “NoCDAS: A Cycle-Accurate NoC-Based Deep Neural Network Accelerator Simulator”, ACM Transactions on Modeling and Computer Simulation, April 2025. https://doi.org/10.1145/3729169 (Open access)
 
 
