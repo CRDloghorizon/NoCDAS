@@ -6,7 +6,6 @@
 #ifndef VCNETWORK_HPP_
 #define VCNETWORK_HPP_
 
-
 #include "Link.hpp"
 #include "NI.hpp"
 #include "VCRouter.hpp"
@@ -37,7 +36,8 @@ public:
 
   void runOneStep();
 
-
+  void clearAllRouterSRAM();
+  
   void average_LCS_latency();
 
 
@@ -58,7 +58,7 @@ public:
 
   void show_URS_distribution();
 
-  // added
+//   added
 //  void show_VCR_buffer_state();
 
   int routerNum;

@@ -10,9 +10,7 @@
 #include "Packet.hpp"
 #include <deque>
 
-
 class NI;
-
 
 class PacketBuffer
 {

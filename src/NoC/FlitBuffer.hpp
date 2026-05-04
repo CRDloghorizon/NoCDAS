@@ -23,6 +23,10 @@ public:
   bool isFull();
   void get_credit();
 
+  int credit_delay;
+  std::deque<unsigned int> credit_return_queue;
+  void update_credits();
+
   ~FlitBuffer();
 
   int id;

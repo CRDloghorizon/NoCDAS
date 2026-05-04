@@ -27,13 +27,23 @@ using namespace std;
 #define SIGMOID             3
 #define SOFTMAX             4
 
+#define MATMUL              15
+#define LAYERNORM           16
+#define SOFTMAX_TR          17
+#define ADD                 18
+#define EMBEDDING           19
+#define RMSNORM             20
+#define SWIGLU              21
+#define ROPE                22
+#define ATTENTION           23
+
 struct NeuInfo
 {
-	int ID_Neu;			// ID of the Neuron in software
-    int ID_layer;			// Layer Number of the Neuron
+	int ID_Neu;					// ID of the Neuron in software
+    int ID_layer;				// Layer Number of the Neuron
 	char Type_layer;			// Type of the layer
 	deque< float> weight;		// Weight of the Neuron
-	int ID_In_layer;		// ID of the Neuron in the layer
+	int ID_In_layer;			// ID of the Neuron in the layer
 	int local_x;
 	int local_y;
 	int local_ch;
@@ -72,7 +82,5 @@ public:
 
 	~Model();
 };
-
-
 
 #endif /* MODEL_HPP_ */

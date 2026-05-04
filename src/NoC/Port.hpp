@@ -10,7 +10,6 @@
 #include "FlitBuffer.hpp"
 #include <vector>
 
-
 class Port
 {
 public:

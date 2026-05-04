@@ -41,12 +41,12 @@ public:
   ~RInPort();
 
   //GROPC field
-  std::vector<int> state; //0->I; 1->R; 2-> V; 3->A;
+  std::vector<int> state;                     //0->I; 1->R; 2-> V; 3->A;
   std::vector<int> out_port;
   std::vector<int> out_vc;
 
   //Switch arbitration
-  int rr_record; //round robin record
+  int rr_record;                              //round robin record
 
 
   // for shared priority
@@ -66,7 +66,7 @@ public:
   // added
   int rid[2];
   //added oct20
-  int flitOperNuminOneCycle;
+  // int flitOperNuminOneCycle;
 };
 
 

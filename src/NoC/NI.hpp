@@ -29,7 +29,6 @@ class PacketBuffer;
 class ROutPort;
 class Flit;
 
-//added packet id
 extern int packet_id;
 extern std::vector<std::vector<int>> LCS_packet_delay;
 extern std::vector<std::vector<int>> URS_packet_delay;
@@ -47,25 +46,22 @@ public:
   int vc_per_vn;
   int vc_priority_per_vn;
 
-  // added
   unsigned int NI_cycle_npooling;
-
 
   std::vector<PacketBuffer*> packetBuffer_list;
   std::vector<std::deque<Packet*> > packet_buffer_out;  // 0 request; 1 response
   std::vector<FlitBuffer*> buffer_list;
   std::vector<int> out_vc;
-  std::vector<int> state; // 0 I; 1 V; 2 A;
+  std::vector<int> state;                               // 0 I; 1 V; 2 A;
 
   std::vector<int> priority_vc;
-  int count_vc; // starvation forbidden
+  int count_vc;                                         // starvation forbidden
   std::vector<int> priority_switch;
-  int count_switch; // starvation forbidden
+  int count_switch;                                     // starvation forbidden
 
   int rr_buffer;
   int in_depth;
 
-  // for individual priority
   int starvation;
   int rr_priority_record;
 
@@ -78,7 +74,6 @@ public:
 
   static int count_input;
 
-  //added
   int num_flit;
 
   int total_delay;
@@ -107,8 +102,6 @@ public:
   static int converse_latency_single_total;
   static int converse_latency_single_worst;
 
-
-
   // send
   bool flitize(Packet*, int);
 
@@ -118,7 +111,6 @@ public:
   void dequeue();
 
   // receive
-
   void inputCheck();
 
   // main

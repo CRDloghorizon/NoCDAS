@@ -23,21 +23,20 @@
 //#define MEM_NODES 4
 //const int dest_list[] = {18, 21, 42, 45};
 
-
 // memory node (NI)
 
 #ifdef MemNode4
 	#define MEM_NODES 4
-	const int dest_list[] = {18, 21, 42, 45}; // 8*8
+	const int dest_list[] = {18, 21, 42, 45}; 												// 8*8
 #elif defined MemNode8
 	#define MEM_NODES 8
-	const int dest_list[] = {17, 18, 21, 22, 41, 42, 45, 46};  // 8*8
+	const int dest_list[] = {17, 18, 21, 22, 41, 42, 45, 46};  								// 8*8
 #elif defined MemNode8edge
 	#define MEM_NODES 8
-	const int dest_list[] = {8, 15, 16, 23, 40, 47, 48, 55};  // 8*8 NoC 8 MC on edge
+	const int dest_list[] = {8, 15, 16, 23, 40, 47, 48, 55};  								// 8*8 NoC 8 MC on edge
 #elif defined MemNode2
 	#define MEM_NODES 2
-	const int dest_list[] = {9, 10}; // 4*4
+	const int dest_list[] = {9, 10}; 														// 4*4
 #elif defined MemNode18
 	#define MEM_NODES 18
 	const int dest_list[] = {25,26,29,30,33,34,73,74,77,78,81,82,121,122,125,126,129,130};  // 12*12
@@ -46,19 +45,16 @@
 	const int dest_list[] = {33,34,37,38,41,42,45,46,97,98,101,102,105,106,109,110,161,162,165,166,169,170,173,174,225,226,229,230,233,234,237,238};  // 12*12
 #elif defined MemNode5
 	#define MEM_NODES 5
-	const int dest_list[] = {13, 14, 17, 25, 28};  // 6*6
+	const int dest_list[] = {13, 14, 17, 25, 28};  											// 6*6
 #elif defined MemNode13
 	#define MEM_NODES 13
-	const int dest_list[] = {21,22,25,26,29,61,62,65,66,69,81,85,88};  // 10*10
+	const int dest_list[] = {21,22,25,26,29,61,62,65,66,69,81,85,88};  						// 10*10
 #endif
-//
 
 using namespace std;
 
 extern int packet_id;
-
 extern unsigned int cycles;
-
 extern vector<vector<int>> DNN_latency;
 
 class MACnet;
@@ -91,13 +87,31 @@ class MAC
 	int tmpm;
 	int m_count;
 	float outfeature{}; //from MRL
+	std::vector<float> outfeature_vec;
 	deque <int> routing_table;
+
+	// local SRAM, KV-Cache
+	std::vector<float> kv_cache;
+
+	// Hardware SRAM Tiling Registers
+	int current_chunk;
+	int total_chunks;
+	float psum_accumulator;
+
+	int max_context_limit;
+
+	std::vector<float> cached_attention_scores;
+	int cached_score_row;
+	int cached_score_head;
 
 	// for new pooling
 	int npoolflag;
 	int n_tmpch;
 	deque<int> n_tmpm;
 
+    // for Transformer
+    int causal_mask; 			// 1 turns on the Attention Causal Mask
+	int local_sram_usage;
 
 	MAC* nextMAC;
 
@@ -108,11 +122,7 @@ class MAC
 	void tanh(float& x);
 	void relu(float& x);
 
-
 	~MAC ();
 };
-
-
-
 
 #endif /* MAC_HPP_ */

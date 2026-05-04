@@ -8,6 +8,7 @@
 
 #include "Packet.hpp"
 #include <vector>
+#include <bitset>
 
 class Packet;
 
@@ -34,10 +35,22 @@ public:
   int vc;
   int out_port;
   int packetid;
+  
   float sched_time; // if sched_time < cur_time, then the flit can be transferred.
   // added To trace the passing node id and cycles
   std::vector<int> trace_node;
   std::vector<int> trace_time;
+
+  std::vector<bool>computed_routers;
+
+  int global_data_offset;
+
+  int current_payload_size;
+  
+  float get_data(int local_index) const;
+  int get_payload_size() const;
+
+  void update_data(int local_index, float new_val);
 
   Packet * packet;
 };

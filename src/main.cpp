@@ -6,6 +6,8 @@
 // Description : A Cycle-Accurate NoC-based Deep Neural Network Accelerator Simulator
 //======================================================================================
 
+
+#include <cmath>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -109,7 +111,7 @@ int main(int arg_num, char *arg_vet[]) {
 	MACnet* macnet = new MACnet(PE_NUM, PE_X_NUM, PE_Y_NUM, cnnmodel, vcNetwork);
 
 	cycles = 0;
-	unsigned int simulate_cycles = 500000000;
+	auto simulate_cycles = 50000000000ULL; // 50 billion cycles
 
 	// Main simulation
 	for(; cycles < simulate_cycles; cycles++){
@@ -125,17 +127,109 @@ int main(int arg_num, char *arg_vet[]) {
 		if(cycles%PRINT==0) {cout << "Running cycles: " << cycles << endl;}
 	}
 
+// #ifdef fulleval
+// 	for (float j: macnet->output_table[0])
+// 	{
+// 		cout << j << ' ';
+// 	}
+// 	cout << endl;
+// #endif
+
+// 	cout << "Cycles: " << cycles << endl;
+
+// 	cout << "Packet id: " << packet_id << endl;
+
+// #ifdef Countlatency
+// 	int maxoutnum = CountNum;
+// 	ofstream outfile_delay("./src/output/lenettrace.txt", ios::out);
+// 	if (packet_id*3 <= CountNum) {maxoutnum = packet_id*3;}
+// 	for(int i=0; i<maxoutnum; i++){
+// 	  for(int j=0; j<8; j++){
+// 		  outfile_delay << DNN_latency[i][j] << ' ';
+// 	  }
+// 	  outfile_delay << endl;
+// 	}
+// 	outfile_delay.close();
+// #endif
+// 	chrono::steady_clock::time_point end = chrono::steady_clock::now();
+// 	cout << "Execution time (sec) = " <<  (chrono::duration_cast<chrono::microseconds>(end - begin).count()) /1000000.0  << endl;
+
+// 	cout << "!!END!!" << endl;
+// 	delete macnet;
+// 	delete cnnmodel;
+// 	return 0;
+// }
+
 #ifdef fulleval
-	for (float j: macnet->output_table[0])
-	{
-		cout << j << ' ';
-	}
-	cout << endl;
+    for (float j: macnet->output_table[0]) {
+        cout << j << ' ';
+    }
+    cout << endl;
+
+    std::string filename = "output_baseline.txt";
+
+#ifndef cNoC_MODE
+    // Baseline execution
+    std::ofstream out_file(filename);
+    if (out_file.is_open()) {
+        for (float j : macnet->output_table[0]) {
+            out_file << j << " ";
+        }
+        out_file.close();
+        cout << "\n=> [BASELINE] Output saved in " << filename << endl;
+    }
+#else
+    // if we're using cNoC_MODE, we want to compare the output with the baseline
+    std::ifstream in_file(filename);
+    if (in_file.is_open()) {
+        std::vector<float> baseline_out;
+        float val;
+        while (in_file >> val) {
+            baseline_out.push_back(val);
+        }
+        in_file.close();
+
+        if (baseline_out.size() == macnet->output_table[0].size()) {
+            float dot_product = 0.0f, norm_a = 0.0f, norm_b = 0.0f;
+            float mae = 0.0f;
+            int n = baseline_out.size();
+
+            for (int i = 0; i < n; ++i) {
+                float a = baseline_out[i];
+                float b = macnet->output_table[0][i];
+                dot_product += a * b;
+                norm_a += a * a;
+                norm_b += b * b;
+                mae += std::abs(a - b);
+            }
+
+            float cosine_similarity = dot_product / (std::sqrt(norm_a) * std::sqrt(norm_b));
+            mae /= n;
+
+            cout << "\n=======================================================\n";
+            cout << "   Precision Analysis (cNoC In-Transit vs Baseline)\n";
+            cout << "=======================================================\n";
+            cout << "Cosine Similarity : " << cosine_similarity * 100.0f << " %\n";
+            cout << "Mean Absolute Err : " << mae << "\n";
+            cout << "=======================================================\n";
+            
+            if (cosine_similarity > 0.98f) {
+                cout << "SUCCESS: Tensors are directionally equivalent!\n" << endl;
+            } else {
+                cout << "WARNING: Structure mismatch detected.\n" << endl;
+            }
+        } else {
+            cout << "\nError: Output dimensions do not match (" 
+                 << baseline_out.size() << " vs " << macnet->output_table[0].size() << ")" << endl;
+        }
+    } else {
+        cout << "\nWARNING: Run the simulation WITHOUT cNoC_MODE first to create the baseline!" << endl;
+    }
+#endif
 #endif
 
-	cout << "Cycles: " << cycles << endl;
-
-	cout << "Packet id: " << packet_id << endl;
+    cout << "Cycles: " << cycles << endl;
+    cout << "Packet id: " << packet_id << endl;
 
 #ifdef Countlatency
 	int maxoutnum = CountNum;

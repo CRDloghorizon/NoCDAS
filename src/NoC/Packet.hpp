@@ -8,9 +8,6 @@
 
 #include <vector>
 #include <stdio.h>
-#include <deque>
-using namespace std;
-
 
 struct Message{
   int NI_id;
@@ -24,13 +21,21 @@ struct Message{
   int QoS = 0;
   int source_id;
   int signal_id;
-  deque<float> data;
+  
+  std::vector<float> data;          // Contains inputs and partial sums
+  int psum_offset = 0;              // Contains the start index of psum in 'data'.
+  int k_dim = 0;
+
+  double running_max = -1e9;        // Tracks the maximum score (m)
+  double running_sum = 0.0;         // Tracks the sum of exponentials (l)
+
+  int compute_op;                   // type of operation (es. MATMUL, ADD)
+  
+  std::vector<int> routing_path;    // Source routing: sorted list of routers ID to traverse
+  
   //for pooling
-  // int poutid;	// for pooling table check
-  int penable;  // 0 no, 1 max, 2 avg
-
+  int penable;                       // 0 no, 1 max, 2 avg
 };
-
 
 class Packet
 {
@@ -38,21 +43,18 @@ public:
   Packet(Message t_message, int router_num_x, int* NI_num);
 
   Message message;
-  int length;  // length in byte
-  int type; // 0 -> request; 1 -> response;
+  int length;                       // byte length
+  int type;                         // 0 -> request; 1 -> response; 4 -> distribution; 5 -> computation;
   int vnet;
-  int destination[3];  // x, y, output port of the router; from 0 ..
+  int destination[3];               // x, y, output port of the router
+
+  float send_out_time;              // time of packet sent from PE
+  float in_net_time;                // time of packet insert in to the NoC
 
   void dest_convert(int dest, int router_num_x, int* NI_num);
+  int get_next_router_dest();       // source routing helper
 
-  int send_out_time;
-
-  //added
-  int in_net_time;
-
-
-
+  int current_path_index;           // Tracks progress in Source Routing
 };
-
 
 #endif /* PACKET_HPP_ */

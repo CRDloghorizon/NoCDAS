@@ -13,7 +13,6 @@
 
 class Link;
 
-
 class ROutPort : public Port
 {
 public:

@@ -1,8 +1,6 @@
 /*
  * Model.cpp
- * 
- */
-
+ * */
 
 #include "Model.hpp"
 #include <math.h>
@@ -16,12 +14,11 @@ Model::Model()
 	layernum = 0;
 }
 
-
-bool Model::load()// load model
+bool Model::load()					// load model
 {
 	cout<<"model file loading (filename: " << GlobalParams::NNmodel_filename << ")..."<< endl;
 	ifstream fin(GlobalParams::NNmodel_filename, ios::in);
-	char temp_type[20], temp_actfun[10];
+	char temp_type[20], temp_actfun[11];
 	int temp;
 	int temp_c_x, temp_c_y, temp_i, temp_z, temp_std, temp_x, temp_y, temp_pad;
 	deque< deque< int > > conv;
@@ -60,7 +57,7 @@ bool Model::load()// load model
 				all_layer_type.push_back('c');
 				char line[256];
 				fin.getline(line, sizeof(line) - 1);
-				sscanf(line, "%d %d %d %d %s %d %d", &temp_i, &temp_c_x, &temp_c_y, &temp_z, &temp_actfun, &temp_pad, &temp_std); // input channel, Kernel x, Kernel y, output Channel.
+				sscanf(line, "%d %d %d %d %10s %d %d", &temp_i, &temp_c_x, &temp_c_y, &temp_z, temp_actfun, &temp_pad, &temp_std); // input channel, Kernel x, Kernel y, output Channel.
 				temp = temp_i*temp_z;
 				deque< int > temp_layer_size;
 				temp_layer_size.push_back(temp);
@@ -139,7 +136,7 @@ bool Model::load()// load model
 				all_layer_type.push_back('f');
 				char line[256];
 				fin.getline(line, sizeof(line) - 1);
-				sscanf(line, "%d %d %s", &temp_z, &temp, &temp_actfun); // input size, output size, activation
+				sscanf(line, "%d %d %s", &temp_z, &temp, temp_actfun); // input size, output size, activation
 				deque< int > temp_layer_size;
 				temp_layer_size.push_back(temp_z);
 				temp_layer_size.push_back(temp);
@@ -159,6 +156,142 @@ bool Model::load()// load model
 					<<                   setw(10)<<" |"<<           	 setw(10)<<" |"<<                   setw(10)<<" |"
 					<<                   setw(10)<<" |"<<	 setw(8)<<temp_actfun<<" |"<<endl;
 			}
+            else if (!strcmp(temp_type, "Embedding"))
+            {
+                all_layer_type.push_back('e');
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                int vocab_size, d_model;
+                sscanf(line, "%d %d", &vocab_size, &d_model);
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(vocab_size); // Vocab size
+                temp_layer_size.push_back(d_model);    // Embedding dimension
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"Embed"<<" |"<<setw(8)<<vocab_size<<" |"<<setw(8)<<d_model<<" |"<<endl;
+            }
+            else if (!strcmp(temp_type, "MatMul"))
+            {
+                all_layer_type.push_back('m');
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                int in_dim, out_dim;
+                sscanf(line, "%d %d", &in_dim, &out_dim);
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(in_dim);
+                temp_layer_size.push_back(out_dim);
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"MatMul"<<" |"<<setw(8)<<in_dim<<" |"<<setw(8)<<out_dim<<" |"<<endl;
+            }
+            else if (!strcmp(temp_type, "LayerNorm"))
+            {
+                all_layer_type.push_back('l');
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                int features;
+                sscanf(line, "%d", &features);
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(features);
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"LNorm"<<" |"<<setw(8)<<features<<" |"<<endl;
+            }
+			else if (!strcmp(temp_type, "RMSNorm"))
+            {
+                all_layer_type.push_back('r');
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                int features;
+                sscanf(line, "%d", &features);
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(features);
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"RMSNorm"<<" |"<<setw(8)<<features<<" |"<<endl;
+            }
+            else if (!strcmp(temp_type, "Softmax"))
+            {
+                all_layer_type.push_back('s');
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                int features, masked;
+                sscanf(line, "%d %d", &features, &masked); // masked: 1 (causal), 0 (none)
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(features);
+                temp_layer_size.push_back(masked); 
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"Softmax"<<" |"<<setw(8)<<features<<" |"<<endl;
+            }
+            else if (!strcmp(temp_type, "Add"))
+            {
+                all_layer_type.push_back('a');
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                
+                int features, residual_source;
+                // 2 values: length and source layer id for the residual
+                sscanf(line, "%d %d", &features, &residual_source);
+                
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(features);
+                temp_layer_size.push_back(residual_source);
+                
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"Add"<<" |"<<setw(8)<<features<<" | ResSrc:"<<residual_source<<endl;
+            }
+			else if (!strcmp(temp_type, "SwiGLU"))
+            {
+                all_layer_type.push_back('w');
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                int features;
+                sscanf(line, "%d", &features);
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(features); // Output dimension
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"SwiGLU"<<" |"<<setw(8)<<features<<" |"<<endl;
+            }
+			else if (!strcmp(temp_type, "RoPE"))
+            {
+                all_layer_type.push_back('o'); 
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                int fused_dim, q_dim, k_dim, n_heads;
+                
+                sscanf(line, "%d %d %d %d", &fused_dim, &q_dim, &k_dim, &n_heads); 
+                
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(fused_dim);
+                temp_layer_size.push_back(q_dim);
+                temp_layer_size.push_back(k_dim);
+                temp_layer_size.push_back(n_heads);
+                
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"RoPE"<<" |"<<setw(8)<<fused_dim<<" |"<<endl;
+            }
+			else if (!strcmp(temp_type, "Attention"))
+            {
+                all_layer_type.push_back('t'); // 't': aTtention
+                char line[256];
+                fin.getline(line, sizeof(line) - 1);
+                int fused_dim, q_dim, k_dim, n_heads;
+                sscanf(line, "%d %d %d %d", &fused_dim, &q_dim, &k_dim, &n_heads); 
+                
+                deque<int> temp_layer_size;
+                temp_layer_size.push_back(fused_dim); // [0] = input
+                temp_layer_size.push_back(q_dim);     // [1] = Total dimension Q
+                temp_layer_size.push_back(k_dim);     // [2] = K/V len (GQA)
+                temp_layer_size.push_back(n_heads);   // [3] = Number of heads Q
+                
+                layernum++;
+                all_layer_size.push_back(temp_layer_size);
+                cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"Attn"<<" |"<<setw(8)<<q_dim<<" |"<<endl;
+            }
 			else if (!strcmp( temp_type, "%"))
 			{
 
@@ -177,12 +310,8 @@ bool Model::load()// load model
 		cout<<"All neurons:"<<all_Nue<<endl;
 		fin.close();
 
-
-
 		return true;
 }
-
-
 
 bool Model::loadin()// load model
 {
@@ -285,7 +414,6 @@ bool Model::randomweight()// load model
 
 	for(int i = 0; i < clayer; i++)
 	{
-		
 		if(all_layer_type[i] == 'c')
 		{
 			num_w = all_layer_size[i][3]; //z output ch
@@ -317,6 +445,59 @@ bool Model::randomweight()// load model
 				j++; // y + 1
 			}
 		}
+        else if(all_layer_type[i] == 'm') // MatMul
+        {
+            num_w = all_layer_size[i][1]; // output_dim
+            len_w = all_layer_size[i][0] + 1; // input_dim + bias
+            check = check + num_w;
+            for (int m = 0; m < num_w; m++) {
+                all_weight_in.push_back(deque<float>());
+                for (int n = 0; n < len_w; n++) {
+                    all_weight_in[j].push_back(generateRandomFloat());
+                }
+                j++;
+            }
+        }
+        else if(all_layer_type[i] == 'e') // Embedding
+        {
+            num_w = all_layer_size[i][0];
+            len_w = all_layer_size[i][1];
+            check = check + num_w;
+            for (int m = 0; m < num_w; m++) {
+                all_weight_in.push_back(deque<float>());
+                for (int n = 0; n < len_w; n++) {
+                    all_weight_in[j].push_back(generateRandomFloat());
+                }
+                j++;
+            }
+        }
+        else if(all_layer_type[i] == 'l') // LayerNorm
+        {
+            num_w = 2;
+            len_w = all_layer_size[i][0];
+            check = check + num_w;
+            for (int m = 0; m < num_w; m++) {
+                all_weight_in.push_back(deque<float>());
+                for (int n = 0; n < len_w; n++) {
+                    all_weight_in[j].push_back(generateRandomFloat());
+                }
+                j++;
+            }
+        }
+		else if(all_layer_type[i] == 'r') // RMSNorm
+        {
+            num_w = 1;
+            len_w = all_layer_size[i][0];
+            check = check + num_w;
+            for (int m = 0; m < num_w; m++) {
+                all_weight_in.push_back(deque<float>());
+                for (int n = 0; n < len_w; n++) {
+                    all_weight_in[j].push_back(generateRandomFloat()); 
+                }
+                j++;
+            }
+        }
+		// Note: 's' (Softmax) and 'a' (Add) do not have trainable weights in this spatial context.
 	}
 	assert((check == all_weight_in.size()) && "Input channel of RandomWeight is not correct!");
 	cout << "Load random weight " << j << " (lines) with weight size " << check << endl;
@@ -324,6 +505,5 @@ bool Model::randomweight()// load model
 }
 
 Model::~Model (){
-
 
 }

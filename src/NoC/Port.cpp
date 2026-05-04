@@ -7,7 +7,6 @@
 #include <iostream>
 #include "../parameters.hpp"
 
-
 Port::Port (int t_id, int t_vn_num, int t_vc_per_vn, int t_vc_priority_per_vn, int t_depth)
 {
    id = t_id;
@@ -33,7 +32,6 @@ Port::Port (int t_id, int t_vn_num, int t_vc_per_vn, int t_vc_priority_per_vn, i
        buffer_list.push_back(t_flitBuffer);
    }
 }
-
 
 Port::~Port(){
   FlitBuffer* flitBuffer;
