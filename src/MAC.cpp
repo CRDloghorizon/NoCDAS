@@ -247,9 +247,9 @@ void MAC::runOneStep()
             else if (fn >= MATMUL && fn <= ATTENTION) // Layer Transformer
             {
                 ch_size = 1;
-                if (fn == MATMUL || fn == ADD || fn == SWIGLU) { 
+                if (fn == MATMUL || fn == ADD || fn == SWIGLU || fn == GEGLU) { 
                     m_size = inbuffer[1];
-                    if (fn == SWIGLU) {
+                    if (fn == SWIGLU || fn == GEGLU) {
                         // SwiGLU: the input size is 2 * m_size (Gate + Up), no weights
                         infeature.assign(inbuffer.begin() + 2, inbuffer.begin() + 4);
                     } else {
@@ -407,6 +407,12 @@ void MAC::runOneStep()
                     
                     float silu = gate * (1.0 / (1.0 + std::exp(-gate)));
                     outfeature = silu * up;
+                }
+                else if (fn == GEGLU) {                                                       
+                    float gate = infeature[0];
+                    float up   = infeature[1]; 
+                    float gelu = 0.5f * gate * (1.0f + std::erf(gate / 1.41421356f));
+                    outfeature = gelu * up;
                 }
                 else if (fn == ROPE) {                                                              // RoPE
                     int pos = inbuffer[2];       
@@ -657,7 +663,7 @@ void MAC::runOneStep()
                     int vector_ops = (3 * m_size) / PE_NUM_OP + 1;
                     calctime = vector_ops * MAC_LATENCY + SQRT_LATENCY + DIV_LATENCY;
                 }
-                else if (fn == SWIGLU) { 
+                else if (fn == SWIGLU || fn == GEGLU) { 
                     // SwiGLU (Exp, Div, 2 MAC)
                     int vector_ops = (4 * m_size) / PE_NUM_OP + 1;
                     calctime = vector_ops * MAC_LATENCY + EXP_LATENCY + DIV_LATENCY;

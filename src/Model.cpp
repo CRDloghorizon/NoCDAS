@@ -255,6 +255,19 @@ bool Model::load()					// load model
                 all_layer_size.push_back(temp_layer_size);
                 cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"SwiGLU"<<" |"<<setw(8)<<features<<" |"<<endl;
             }
+			else if (!strcmp(temp_type, "GeGLU"))
+			{
+				all_layer_type.push_back('g');
+				char line[256];
+				fin.getline(line, sizeof(line) - 1);
+				int features;
+				sscanf(line, "%d", &features);
+				deque<int> temp_layer_size;
+				temp_layer_size.push_back(features);
+				layernum++;
+				all_layer_size.push_back(temp_layer_size);
+				cout<<setw(8)<<all_layer_type.size()-1<<" |"<<   setw(8)<<"GeGLU"<<" |"<<setw(8)<<features<<" |"<<endl;
+			}
 			else if (!strcmp(temp_type, "RoPE"))
             {
                 all_layer_type.push_back('o'); 

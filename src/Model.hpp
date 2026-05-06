@@ -37,6 +37,7 @@ using namespace std;
 #define SWIGLU              21
 #define ROPE                22
 #define ATTENTION           23
+#define GEGLU               24
 
 struct NeuInfo
 {

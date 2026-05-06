@@ -459,7 +459,7 @@ void VCRouter::outPortDequeue(){
                 
                 int opcode = flit->packet->message.compute_op;
                 
-                if (opcode == SWIGLU) {
+                if (opcode == SWIGLU || opcode == GEGLU) {
                     compute_delay = 1; 
                 } 
                 else if (opcode == ADD) {

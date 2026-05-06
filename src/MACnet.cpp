@@ -412,7 +412,7 @@ void MACnet::inject_cNoC_traffic() {
             
             // Select insertion mode based on operation
             comp_msg.data.reserve(this->in_x * 2 + o_x); 
-            if (o_fn == 18 || o_fn == 21) { // 18 = ADD, 21 = SWIGLU
+            if (o_fn == 18 || o_fn == 21|| o_fn == 24) { // 18 = ADD, 21 = SWIGLU, 24 = GeGLU
                 bool has_residual = false;
                 std::vector<float> secondary_data;
 
@@ -433,8 +433,8 @@ void MACnet::inject_cNoC_traffic() {
                     // Second operand
                     if (o_fn == 18 && has_residual) {
                         comp_msg.data.push_back(secondary_data[base_idx]); 
-                    } else if (o_fn == 21) {
-                        // For SWIGLU, the "up" projection is offset by o_x
+                    } else if (o_fn == 21 || o_fn == 24) {
+                        // For SWIGLU and GeGLU, the "up" projection is offset by o_x
                         comp_msg.data.push_back(this->input_table[0][base_idx + o_x]); 
                     } else {
                         comp_msg.data.push_back(0.0f); // Safety fallback
@@ -532,7 +532,7 @@ void MACnet::checkStatus()
 
 #ifdef cNoC_MODE
         char l_type = this->cnnmodel->all_layer_type[c_layer];
-        if (l_type == 'm' || l_type == 'a' || l_type == 'w') 
+        if (l_type == 'm' || l_type == 'a' || l_type == 'w'|| l_type == 'g')
         {
             this->cNoC_mapping(o_ch * o_x); 
         } else {
@@ -702,6 +702,7 @@ void MACnet::checkStatus()
     else if(cnnmodel->all_layer_type[c_layer]=='s') { in_x = layer_info[0]; causal_mask_flag = layer_info[1]; in_ch = 1; w_x = in_x; w_y = 1; o_ch = 1; w_ch = 0; o_fn = SOFTMAX_TR; o_x = in_x; o_y = in_x; }
     else if(cnnmodel->all_layer_type[c_layer]=='a') { in_x = layer_info[0]; in_ch = 1; w_x = in_x; w_y = 1; o_ch = 1; w_ch = 0; o_fn = ADD; o_x = in_x; o_y = in_y; }
     else if(cnnmodel->all_layer_type[c_layer]=='w') { in_x = layer_info[0] * 2; in_ch = 1; w_x = in_x; w_y = 1; o_ch = 1; w_ch = 0; o_fn = SWIGLU; o_x = layer_info[0]; o_y = in_y; }
+    else if(cnnmodel->all_layer_type[c_layer]=='g') { in_x = layer_info[0] * 2; in_ch = 1; w_x = in_x; w_y = 1; o_ch = 1; w_ch = 0; o_fn = GEGLU; o_x = layer_info[0]; o_y = in_y; }
     else if(cnnmodel->all_layer_type[c_layer]=='o') { in_x = layer_info[0]; in_ch = 1; w_x = in_x; w_y = 1; o_ch = 1; w_ch = 0; o_fn = ROPE; o_x = in_x; o_y = in_y; }
     else if(cnnmodel->all_layer_type[c_layer]=='t') { in_x = layer_info[0]; in_ch = 1; w_x = in_x; w_y = 1; o_ch = 1; w_ch = 0; o_fn = ATTENTION; o_x = layer_info[1]; }
 
@@ -766,15 +767,20 @@ void MACnet::runOneStep()
                             // Add operation is linear, it has been computed in-transit in the router
                             this->output_table[0][out_idx] = tmpPacket->message.data[k * 2]; 
                         } 
-                        else if (tmpPacket->message.compute_op == SWIGLU) {
+                        else if (tmpPacket->message.compute_op == SWIGLU || tmpPacket->message.compute_op == GEGLU) {
                             // Non linear calculation at the terminal node (Terminal Node Concept)
                             // We read the raw data transported by the cNoC and compute here
                             float gate = tmpPacket->message.data[k * 2];
                             float up = tmpPacket->message.data[k * 2 + 1];
-                            float silu = gate * (1.0f / (1.0f + std::exp(-gate)));
-                            
-                            this->output_table[0][out_idx] = silu * up;
-                        } 
+                            if (tmpPacket->message.compute_op == SWIGLU) {
+                                float silu = gate * (1.0f / (1.0f + std::exp(-gate)));
+                                this->output_table[0][out_idx] = silu * up;
+                            } else {
+                                // GeGLU Formula: 0.5 * gate * (1 + erf(gate / sqrt(2))) * up
+                                float gelu = 0.5f * gate * (1.0f + std::erf(gate / 1.41421356f));
+                                this->output_table[0][out_idx] = gelu * up;
+                            }
+                        }
                         else {
                             // MATMUL, LINEAR and ATTENTION
                             this->output_table[0][out_idx] = tmpPacket->message.data[p_offset + k]; 
@@ -977,7 +983,7 @@ void MACnet::runOneStep()
                         tmpMAC->inbuffer.push_back(this->input_table[0][tmpy*in_x + tmpx]); 
                         tmpMAC->inbuffer.push_back(this->weight_table[0][tmpx]);            
                     }
-                    else if (o_fn == SWIGLU) { 
+                    else if (o_fn == SWIGLU || o_fn == GEGLU) { 
                         tmpMAC->inbuffer.push_back(o_fn);
                         tmpMAC->inbuffer.push_back(o_x); 
                         tmpMAC->inbuffer.push_back(this->input_table[0][tmpy*in_x + tmpx]);       

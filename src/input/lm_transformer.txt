@@ -8,7 +8,7 @@ MatMul 64 64
 Add 64 1
 RMSNorm 64
 MatMul 64 512
-SwiGLU 256
+GeGLU 256
 MatMul 256 64
 Add 64 6
 % --- Layer 1 ---
@@ -19,7 +19,7 @@ MatMul 64 64
 Add 64 11
 RMSNorm 64
 MatMul 64 512
-SwiGLU 256
+GeGLU 256
 MatMul 256 64
 Add 64 16
 % --- Final Output ---
