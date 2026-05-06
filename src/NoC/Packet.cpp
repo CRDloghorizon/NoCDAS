@@ -8,6 +8,8 @@
 #include <iostream>
 //type convert: add change type and vnet
 
+std::vector<Packet*> Packet::free_pool;
+
 Packet::Packet(Message t_message, int router_num_x, int* NI_num) 
     : message(std::move(t_message))
 {
@@ -49,7 +51,7 @@ Packet::Packet(Message t_message, int router_num_x, int* NI_num)
             break;
   }
 
-  // Flit Alignment and Padding
+  // 2. Flit Alignment and Padding
   // Hardware transfers data in fixed-size flits. We must round up the raw length 
   // to the nearest multiple of FLIT_LENGTH to ensure cycle-accurate simulation.
   // We use integer math: ((length + FLIT_LENGTH - 1) / FLIT_LENGTH) * FLIT_LENGTH
@@ -85,6 +87,44 @@ void Packet::dest_convert(int dest, int router_num_x, int* NI_num){
   destination[1] = router%router_num_x;
   destination[2] = dest-hist_num;
   //std::cout << destination[0] <<destination[1] << destination[2]<<std::endl;
+}
+
+Packet* Packet::allocate(Message t_message, int router_num_x, int* NI_num) {
+    if (!free_pool.empty()) {
+        Packet* p = free_pool.back();
+        free_pool.pop_back();
+        p->reset(std::move(t_message), router_num_x, NI_num);
+        return p;
+    }
+    return new Packet(std::move(t_message), router_num_x, NI_num);
+}
+
+void Packet::release(Packet* packet) {
+    free_pool.push_back(packet);
+}
+
+void Packet::reset(Message t_message, int router_num_x, int* NI_num) {
+    message = std::move(t_message);
+    current_path_index = 0;
+    dest_convert(message.destination, router_num_x, NI_num);
+    
+    int t_type = message.type; 
+    int data_length = message.data_length;
+    
+    switch (t_type){
+        case 0: length = data_length * DATA_BYTES + 2; type = 0; vnet = 0; break;
+        case 1: length = data_length * DATA_BYTES + 2; type = 0; vnet = 0; break;
+        case 2: length = data_length * DATA_BYTES + 2; type = 1; vnet = 0; break;
+        case 3: length = 1 + 2; type = 1; vnet = 0; break;
+        case 4: length = data_length * DATA_BYTES + 2; type = 0; vnet = 1; break;
+        case 5: length = message.data.size() * DATA_BYTES + 4; type = 0; vnet = 1; break;
+    }
+
+    if (length % FLIT_LENGTH != 0) {
+        length = ((length + FLIT_LENGTH - 1) / FLIT_LENGTH) * FLIT_LENGTH;
+    }
+    send_out_time = 0;
+    in_net_time = 0;
 }
 
 

@@ -10,7 +10,7 @@ Originally focused on Convolutional Neural Networks (CNNs) using a standard *Com
 ## Documentation
 For a comprehensive overview of the system's architecture, the cNoC execution mode, routing protocols (Serpentine Sort), and a detailed technical reference of the underlying C++ classes, please refer to the official documentation:
 
-**[NoCDAS Documentation: A Transition to cNoC for LLM Inference](./doc/documentation.pdf)**
+**[NoCDAS Documentation: A Transition to cNoC for LLM Inference](./doc/Documentation.pdf)**
 
 For a more practical, hands-on guide covering simulation setup, workflows, and expected results when using LLMs and the cNoC paradigm, please check out our Toy Model guide:
 

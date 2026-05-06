@@ -150,6 +150,22 @@ void VCNetwork::show_URS_distribution(){
   cout << "worst case: " << NI_list[0]->worst_URS << endl;
 }
 
+//void VCNetwork::show_VCR_buffer_state(){
+//  for(int i=0; i<routerNum; i++){
+//      VCRouter* temp = router_list[i];
+//      router_monitor << cycles << " RID " << i;
+//      for (int j=0; j<temp->port_num; j++){
+//	  RInPort * tempPort = temp->in_port_list[j];
+//	  router_monitor << " PID " << j << " states";
+//	  for (int k: tempPort->state)
+//	    {router_monitor << ' ' << k;}
+//      }
+//      router_monitor << endl;
+//    }
+//  // PID 4 NI connector
+//  // PID 0-3 is 0->up; 1->right; 2->down; 3->left
+//}
+
 // Flush
 void VCNetwork::clearAllRouterSRAM() {
   for (int i = 0; i < routerNum; i++) {

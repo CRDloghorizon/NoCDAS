@@ -26,19 +26,19 @@ class VCRouter: public NRBase
 public:
   // Struct that models the hardware state registers of a VC for cNoC
   struct ComputeVCState {
-    int compute_op;
-    double running_max;
-    double running_sum;
-    bool is_active;
+      int compute_op;
+      double running_max;
+      double running_sum;
+      bool is_active;
 
-    ComputeVCState() : compute_op(-1), running_max(-1e9), running_sum(0.0), is_active(false) {}
-    
-    void reset() {
-      compute_op = -1;
-      running_max = -1e9;
-      running_sum = 0.0;
-      is_active = false;
-    }
+      ComputeVCState() : compute_op(-1), running_max(-1e9), running_sum(0.0), is_active(false) {}
+      
+      void reset() {
+          compute_op = -1;
+          running_max = -1e9;
+          running_sum = 0.0;
+          is_active = false;
+      }
   };
 
   VCRouter (int* t_id, int in_out_port_num, VCNetwork* t_vcNetwork, int t_vn_num, int t_vc_per_vn, int t_vc_priority_per_vn, int t_in_depth);

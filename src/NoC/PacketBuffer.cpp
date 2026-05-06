@@ -36,7 +36,7 @@ PacketBuffer::~PacketBuffer(){
   while(packet_queue.size()!=0){
       packet = packet_queue.front();
       packet_queue.pop_front();
-      delete packet;
+      Packet::release(packet);
   }
 }
 

@@ -55,6 +55,12 @@ public:
   int get_next_router_dest();       // source routing helper
 
   int current_path_index;           // Tracks progress in Source Routing
+
+  // --- Object Pool ---
+  static std::vector<Packet*> free_pool;
+  static Packet* allocate(Message t_message, int router_num_x, int* NI_num);
+  static void release(Packet* packet);
+  void reset(Message t_message, int router_num_x, int* NI_num);
 };
 
 #endif /* PACKET_HPP_ */

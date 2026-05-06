@@ -9,6 +9,7 @@
 #include "Packet.hpp"
 #include <vector>
 #include <bitset>
+#include "../parameters.hpp"
 
 class Packet;
 
@@ -41,7 +42,7 @@ public:
   std::vector<int> trace_node;
   std::vector<int> trace_time;
 
-  std::vector<bool>computed_routers;
+  std::bitset<TOT_NUM> computed_routers;
 
   int global_data_offset;
 
@@ -53,6 +54,12 @@ public:
   void update_data(int local_index, float new_val);
 
   Packet * packet;
+
+  // --- Object Pool ---
+  static std::vector<Flit*> free_pool;
+  static Flit* allocate(int t_id, int t_type, int t_vnet, int t_vc, Packet* t_packet, float t_cycles, int t_pid);
+  static void release(Flit* flit);
+  void reset(int t_id, int t_type, int t_vnet, int t_vc, Packet* t_packet, float t_cycles, int t_pid);
 };
 
 

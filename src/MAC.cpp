@@ -140,7 +140,8 @@ bool MAC::inject (int type, int d_id, int data_length, float t_output, NI* t_NI,
     msg.source_id = NI_id;                     // NI
     msg.type = type;                           // 0 1 2 3
 
-    Packet* packet = new Packet(std::move(msg), X_NUM, t_NI->NI_num);
+    // Packet* packet = new Packet(std::move(msg), X_NUM, t_NI->NI_num);
+    Packet* packet = Packet::allocate(std::move(msg), X_NUM, t_NI->NI_num);
     packet->send_out_time = pecycle;
     packet->in_net_time = pecycle;
     net->vcNetwork->NI_list[NI_id]->packetBuffer_list[packet->vnet]->enqueue(packet);
@@ -468,9 +469,10 @@ void MAC::runOneStep()
                         if (!is_cache_hit || this->kv_cache.size() == 0) {
                             // Cache miss or prefill: Reconstruct the local cache by reading the entire history from the NoC.
                             this->kv_cache.clear();
+                            std::vector<float> token_k_rotated(k_dim, 0.0);
                             for (int t = 0; t <= current_row; t++) {
                                 int t_offset = t * fused_dim;
-                                std::vector<float> token_k_rotated(k_dim, 0.0);
+                                std::fill(token_k_rotated.begin(), token_k_rotated.end(), 0.0f);
 
                                 // RoPE
                                 for (int h = 0; h < total_kv_heads; h++) {

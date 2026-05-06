@@ -1,16 +1,18 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 project(NoCDAS LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Add source files, including .cpp files from both src and include directories
-file(GLOB_RECURSE SOURCES "src/*.cpp" "src/NoC/*.cpp")
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
 
-# Add header files, including .hpp files from both src and include directories
-file(GLOB_RECURSE HEADERS "src/*.hpp" "src/NoC/*.hpp")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 
-# Add the executable
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp" "src/NoC/*.cpp")
+file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS "src/*.hpp" "src/NoC/*.hpp")
+
 add_executable(NoCDASim ${SOURCES} ${HEADERS})
 
-# Include directories
 target_include_directories(NoCDASim PRIVATE src src/NoC src/input)

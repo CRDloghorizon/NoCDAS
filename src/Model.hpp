@@ -27,6 +27,7 @@ using namespace std;
 #define SIGMOID             3
 #define SOFTMAX             4
 
+// Nuove costanti operative per i Transformer
 #define MATMUL              15
 #define LAYERNORM           16
 #define SOFTMAX_TR          17

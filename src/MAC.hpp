@@ -77,9 +77,9 @@ class MAC
 
 	int send;
 	int NI_id;
-	deque<float> weight;
-	deque<float> infeature;
-	deque<float> inbuffer;
+	std::vector<float> weight;
+	std::vector<float> infeature;
+	std::vector<float> inbuffer;
 	int ch_size;
 	int m_size;
 	int dest_mem_id;
@@ -90,10 +90,10 @@ class MAC
 	std::vector<float> outfeature_vec;
 	deque <int> routing_table;
 
-	// local SRAM, KV-Cache
+	// --- local SRAM, KV-Cache ---
 	std::vector<float> kv_cache;
 
-	// Hardware SRAM Tiling Registers
+	// --- Hardware SRAM Tiling Registers ---
 	int current_chunk;
 	int total_chunks;
 	float psum_accumulator;

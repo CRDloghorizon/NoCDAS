@@ -66,6 +66,9 @@ int RInPort::vc_allocate_priority(int vn_rank){
 	return -1;
 }
 
+
+
+
 void RInPort::vc_request(){
 	// flitOperNuminOneCycle = 0;
   	// for priority packet (shared VCs) QoS = 1

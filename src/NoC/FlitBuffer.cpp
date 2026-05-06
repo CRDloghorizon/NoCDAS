@@ -66,7 +66,7 @@ Flit* FlitBuffer::readLast(){
 
 void FlitBuffer::empty(){
   for(auto flit : flit_queue) {
-    delete flit;
+    Flit::release(flit);
   }
   flit_queue.clear();
   cur_flit_num = 0;
@@ -84,7 +84,7 @@ FlitBuffer::~FlitBuffer(){
   while(flit_queue.size()!=0){
     flit = flit_queue.front();
     flit_queue.pop_front();
-    delete flit;
+    Flit::release(flit);
   }
 }
 

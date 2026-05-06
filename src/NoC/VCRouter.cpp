@@ -123,6 +123,30 @@ void VCRouter::processDistributionPacket(Flit* t_flit) {
          */
         const int SINK_TOKENS = 4;
         
+        // A KV loading packet carries [K, V] for a token, so the size is twice the head_dim
+    //     int floats_per_token = payload_size; 
+    //     int max_tokens_in_sram = ROUTER_SRAM_LIMIT / floats_per_token;
+
+    //     if (local_kv_cache.size() + payload_size <= ROUTER_SRAM_LIMIT) {
+    //         // PREFILL phase: There is still space, insert normally
+    //         for (int i = 0; i < payload_size; i++) {
+    //             local_kv_cache.push_back(t_flit->get_data(i));
+    //         }
+    //         current_sram_usage += payload_size;
+    //     } 
+    //     else {
+    //         // SRAM FULL: Eviction is triggered (Ring Buffer)
+    //         // The index rotates discarding intermediate tokens but SAVING the Sinks (0, 1, 2, 3)
+    //         int ring_index = SINK_TOKENS + ((kv_token_count - SINK_TOKENS) % (max_tokens_in_sram - SINK_TOKENS));
+    //         int offset = ring_index * floats_per_token;
+            
+    //         // Overwrite old data in O(1), zero memory reallocations
+    //         for (int i = 0; i < payload_size; i++) {
+    //             local_kv_cache[offset + i] = t_flit->get_data(i);
+    //         }
+    //     }
+    //     kv_token_count++;
+    // } 
         int floats_per_token = t_flit->packet->message.data_length; 
         int max_tokens_in_sram = ROUTER_SRAM_LIMIT / floats_per_token;
 
@@ -165,6 +189,12 @@ void VCRouter::processDistributionPacket(Flit* t_flit) {
 
 void VCRouter::computeInTransit(Flit* t_flit, int port_idx) {
     int this_router_id = id[0] * X_NUM + id[1];
+
+    // Avoid redundant executions of the same flit if it passes multiple times
+    // if (std::find(t_flit->computed_routers.begin(), t_flit->computed_routers.end(), this_router_id) != t_flit->computed_routers.end()) {
+    //     return;
+    // }
+    // t_flit->computed_routers.push_back(this_router_id);
 
     // Avoid redundant executions of the same flit if it passes multiple times
     if (t_flit->computed_routers[this_router_id]) {
@@ -302,6 +332,10 @@ void VCRouter::computeInTransit(Flit* t_flit, int port_idx) {
                 if (t_flit->type != 1 && t_flit->type != 10) break;
                 if (local_kv_cache.empty()) break;
 
+                // int q_dim = t_flit->packet->message.data.size() - t_flit->packet->message.psum_offset;
+                // assert(q_dim > 0 && "FATAL: q_dim is 0, cannot divide by zero.");
+                // int num_local_tokens = local_kv_cache.size() / (q_dim * 2);
+
                 int q_dim = t_flit->packet->message.data.size() - t_flit->packet->message.psum_offset;
                 int k_dim = (t_flit->packet->message.k_dim > 0) ? t_flit->packet->message.k_dim : q_dim;
                 int num_local_tokens = (int)local_kv_cache.size() / (k_dim * 2);
@@ -318,8 +352,10 @@ void VCRouter::computeInTransit(Flit* t_flit, int port_idx) {
                         dot_product += (double)t_flit->packet->message.data[d] * (double)local_kv_cache[k_offset + d];
                     }
 
-                    assert(k_dim > 0 && "FATAL: k_dim is 0, cannot divide by zero.");
-                    
+                    if (k_dim <= 0) {
+                        std::cerr << "FATAL ERROR: k_dim is 0, cannot divide by zero in Attention!" << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
                     dot_product /= std::sqrt((double)k_dim);
                     local_scores[t] = dot_product;
                     if (dot_product > local_max) local_max = dot_product;
@@ -478,7 +514,7 @@ void VCRouter::outPortDequeue(){
                 VCRouter* vcRouter = dynamic_cast<VCRouter*>(out_port_list[i]->out_link->rInPort->router_owner);
                 if (vcRouter != NULL){
 #ifdef SHARED_VC 
-                    if(flit->packet->signal->QoS == 1){
+                    if(flit->packet->message.QoS == 1){
                         out_port_list[i]->out_link->rInPort->priority_vc.push_back(flit->vc);
                         out_port_list[i]->out_link->rInPort->priority_switch.push_back(flit->vc);
                     }
@@ -513,27 +549,38 @@ bool VCRouter::allocateSRAM(int num_floats) {
 }
 
 void VCRouter::storeWeight(float weight_value) {
-    assert(allocateSRAM(1) == true && "SRAM OVERFLOW: Impossible to store weight!");
+    bool can_allocate = allocateSRAM(1);
+    if (!can_allocate) {
+        std::cerr << "FATAL ERROR: SRAM OVERFLOW! Impossible to store weight in router (" 
+                  << id[0] << "," << id[1] << ")." << std::endl;
+        exit(EXIT_FAILURE);
+    }
     local_weights.push_back(weight_value);
 }
 
 void VCRouter::storeKV(float kv_value) {
-    assert(allocateSRAM(1) == true && "SRAM OVERFLOW: Impossible to store KV cache!");
+    bool can_allocate = allocateSRAM(1);
+    if (!can_allocate) {
+        std::cerr << "FATAL ERROR: SRAM OVERFLOW! Impossible to store KV cache in router (" 
+                  << id[0] << "," << id[1] << ")." << std::endl;
+        exit(EXIT_FAILURE);
+    }
     local_kv_cache.push_back(kv_value);
 }
 
 void VCRouter::writeKV(int index, float kv_value) {
-    // If the index exceeds current capacity, we need to expand the SRAM
     if (index >= local_kv_cache.size()) {
         int needed_expansion = (index + 1) - local_kv_cache.size();
         
-        // The security check is centralized here (if it fails, there's a hardware overflow)
-        assert(allocateSRAM(needed_expansion) == true && "SRAM OVERFLOW: Impossible to expand KV cache!");
+        bool can_allocate = allocateSRAM(needed_expansion);
+        if (!can_allocate) {
+            std::cerr << "FATAL ERROR: SRAM OVERFLOW! Impossible to expand KV cache in router (" 
+                      << id[0] << "," << id[1] << ")." << std::endl;
+            exit(EXIT_FAILURE);
+        }
         
         local_kv_cache.resize(index + 1, 0.0f);
     }
-    
-    // Write the data (whether it's a new allocated space or an overwrite in the Ring Buffer)
     local_kv_cache[index] = kv_value;
 }
 
