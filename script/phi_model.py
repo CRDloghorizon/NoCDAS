@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM, AutoConfig
+from transformers import Phi3Config, Phi3ForCausalLM
 from pathlib import Path
 import numpy as np
 import torch
@@ -8,9 +8,9 @@ import gc
 BASE_DIR    = Path(__file__).resolve().parents[1]
 OUT_DIR     = BASE_DIR / "src" / "input"
 
-model_file  = OUT_DIR / "lm_transformer_qwen.txt"
-weight_file = OUT_DIR / "lm_weight_qwen.txt"
-input_file  = OUT_DIR / "lm_input_qwen.txt"
+model_file  = OUT_DIR / "lm_transformer_phi.txt"
+weight_file = OUT_DIR / "lm_weight_phi.txt"
+input_file  = OUT_DIR / "lm_input_phi.txt"
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -44,12 +44,10 @@ def write_weights_int8(fw, tensor, bias_tensor=None, needs_bias_slot=False):
     w_np = tensor.detach().cpu().float().numpy()
     b_np = bias_tensor.detach().cpu().float().numpy() if bias_tensor is not None else None
     
-    # 1D layers (Normalizations) remain in FP32
     if w_np.ndim == 1:
         fw.write(" ".join([f"{x:.6f}" for x in w_np]) + "\n")
         return
 
-    # Scale calculation and INT8 quantization
     abs_max = np.max(np.abs(w_np))
     scale = float(abs_max / 127.0) if abs_max > 0 else 1.0 
     
@@ -65,32 +63,41 @@ def write_weights_int8(fw, tensor, bias_tensor=None, needs_bias_slot=False):
         fw.write(" ".join([f"{x:.6f}" for x in row]) + "\n")
 
 def main():
-    device = torch.device("cpu")
+    config = Phi3Config(
+        vocab_size=8192,
+        hidden_size=1024,
+        intermediate_size=4096,
+        num_hidden_layers=20,
+        num_attention_heads=16,
+        num_key_value_heads=4,
+        max_position_embeddings=4096,
+        rms_norm_eps=1e-5,
+        pad_token_id=0,
+        bos_token_id=1,
+        eos_token_id=2,
+    )
     
-    config = AutoConfig.from_pretrained("Qwen/Qwen2.5-0.5B")
-
-    config.vocab_size = 8192
     apply_quantization = True
-    
-    # Hardware parameter for NoCDAS
     SIMULATION_SEQ_LEN = 64
 
-    model = AutoModelForCausalLM.from_config(config, dtype=torch.float32)
+    print("[INFO] Generating Phi-3 model...")
+    
+    model = Phi3ForCausalLM(config)
     model.eval()
 
-    print(f"[INFO] Number of parameters: {model.num_parameters():,}")
+    print(f"[INFO] Total number of generated parameters: {model.num_parameters():,}")
     
     VOCAB_SIZE = config.vocab_size
     D_MODEL = config.hidden_size
     NHEAD = config.num_attention_heads
-    NUM_KV_HEADS = getattr(config, 'num_key_value_heads', NHEAD) 
+    NUM_KV_HEADS = config.num_key_value_heads 
     DIM_FF = config.intermediate_size
 
     if apply_quantization is True:
-        print(f"[INFO] Applying INT8 Quantization.")
+        print(f"[INFO] Fake INT8 Quantization enabled.")
         write_method = write_weights_int8
     else:
-        print(f"[INFO] Applying pure FP32 export.")
+        print(f"[INFO] Exporting in FP32.")
         write_method = write_weights_fp32
 
     topo_file = open(model_file, "w")
@@ -104,14 +111,12 @@ def main():
         layer_counter += 1
         return curr_id
 
-    print("\n[INFO] Starting topological and weight files generation...")
-
     # Input and embedding
     write_node(f"Input {SIMULATION_SEQ_LEN} 1 1")
     res_src = write_node(f"Embedding {VOCAB_SIZE} {D_MODEL}")
     write_method(weight_file_open, model.model.embed_tokens.weight)
 
-    # Loop over transformer blocks (Qwen layers)
+    # Transformer blocks
     for i, layer in enumerate(model.model.layers): 
         topo_file.write(f"% --- Layer {i} ---\n") 
 
@@ -124,32 +129,14 @@ def main():
         fused_dim = D_MODEL + 2 * k_dim
         write_node(f"MatMul {D_MODEL} {fused_dim}") 
         
-        # Extract and concatenate Q, K, V Weights
-        fused_weight = torch.cat([
-            layer.self_attn.q_proj.weight, 
-            layer.self_attn.k_proj.weight, 
-            layer.self_attn.v_proj.weight
-        ], dim=0)
-        
-        # Extract and concatenate Q, K, V Biases (if used by the model)
-        if hasattr(layer.self_attn.q_proj, 'bias') and layer.self_attn.q_proj.bias is not None:
-            fused_bias = torch.cat([
-                layer.self_attn.q_proj.bias, 
-                layer.self_attn.k_proj.bias, 
-                layer.self_attn.v_proj.bias
-            ], dim=0)
-        else:
-            fused_bias = None
-
-        write_method(weight_file_open, fused_weight, bias_tensor=fused_bias, needs_bias_slot=True)
+        write_method(weight_file_open, layer.self_attn.qkv_proj.weight, bias_tensor=None, needs_bias_slot=True)
         
         # In-Transit Attention Node
         write_node(f"Attention {fused_dim} {D_MODEL} {k_dim} {NHEAD}")
 
         # Out Projection Attention (o_proj)
         write_node(f"MatMul {D_MODEL} {D_MODEL}")
-        out_bias = layer.self_attn.o_proj.bias if hasattr(layer.self_attn.o_proj, 'bias') else None
-        write_method(weight_file_open, layer.self_attn.o_proj.weight, bias_tensor=out_bias, needs_bias_slot=True)
+        write_method(weight_file_open, layer.self_attn.o_proj.weight, bias_tensor=None, needs_bias_slot=True)
 
         # First Residual Connection
         res_src = write_node(f"Add {D_MODEL} {res_src}")
@@ -160,44 +147,33 @@ def main():
 
         # Fused MatMul for MLP (Gate + Up Projection)
         write_node(f"MatMul {D_MODEL} {DIM_FF * 2}")
-        gate_up_weight = torch.cat([
-            layer.mlp.gate_proj.weight, 
-            layer.mlp.up_proj.weight
-        ], dim=0)
         
-        if hasattr(layer.mlp.gate_proj, 'bias') and layer.mlp.gate_proj.bias is not None:
-            gate_up_bias = torch.cat([layer.mlp.gate_proj.bias, layer.mlp.up_proj.bias], dim=0)
-        else:
-            gate_up_bias = None
-
-        write_method(weight_file_open, gate_up_weight, bias_tensor=gate_up_bias, needs_bias_slot=True)
+        write_method(weight_file_open, layer.mlp.gate_up_proj.weight, bias_tensor=None, needs_bias_slot=True)
         
         # SwiGLU Node
         write_node(f"SwiGLU {DIM_FF}")
         
         # Down Projection MLP (down_proj)
         write_node(f"MatMul {DIM_FF} {D_MODEL}")
-        down_bias = layer.mlp.down_proj.bias if hasattr(layer.mlp.down_proj, 'bias') else None
-        write_method(weight_file_open, layer.mlp.down_proj.weight, bias_tensor=down_bias, needs_bias_slot=True)
+        write_method(weight_file_open, layer.mlp.down_proj.weight, bias_tensor=None, needs_bias_slot=True)
 
         # Second Residual Connection
         res_src = write_node(f"Add {D_MODEL} {res_src}")
 
         gc.collect()
 
-    # Final output (LayerNorm and LM Head)
+    # Final Output
     topo_file.write(f"% --- Final Output ---\n")
     write_node(f"RMSNorm {D_MODEL}")
     write_method(weight_file_open, model.model.norm.weight)
     
     write_node(f"MatMul {D_MODEL} {VOCAB_SIZE}")
-    lm_head_bias = model.lm_head.bias if hasattr(model.lm_head, 'bias') else None
-    write_method(weight_file_open, model.lm_head.weight, bias_tensor=lm_head_bias, needs_bias_slot=True)
+    write_method(weight_file_open, model.lm_head.weight, bias_tensor=None, needs_bias_slot=True)
 
     with open(input_file, "w") as fi:
         base_pattern = [10, 250, 314, 400, 50] 
-        moltiplicatore = (SIMULATION_SEQ_LEN // len(base_pattern)) + 1
-        test_sequence = (base_pattern * moltiplicatore)[:SIMULATION_SEQ_LEN]
+        multiplier = (SIMULATION_SEQ_LEN // len(base_pattern)) + 1
+        test_sequence = (base_pattern * multiplier)[:SIMULATION_SEQ_LEN]
         fi.write(" ".join([str(x) for x in test_sequence]) + "\n")
 
     topo_file.close()

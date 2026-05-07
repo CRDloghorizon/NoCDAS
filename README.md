@@ -60,7 +60,7 @@ The simulator parses model architectures from text files. Supported layers inclu
 *   `AvgPool` *in_channel kernel_x kernel_y out_channel padding stride*
 *   `Dense` *in_size out_size activation*
 
-*(Activation options: "relu", "tanh", "sigmoid", "linear", "swiglu")*
+*(Activation options: "relu", "tanh", "sigmoid", "linear", "swiglu", "geglu")*
 
 **Transformer / LLM Layers:**
 *   `MATMUL` - Standard matrix multiplication (Query/Key/Value/FFN projections).

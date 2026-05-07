@@ -244,7 +244,7 @@ void MAC::runOneStep()
                 infeature.assign(inbuffer.begin() + 2, inbuffer.end());
                 assert((infeature.size() == m_size) && "Inbuffer not correct after request (pooling)");
             }
-            else if (fn >= MATMUL && fn <= ATTENTION) // Layer Transformer
+            else if (fn >= MATMUL && fn <= GEGLU) // Layer Transformer
             {
                 ch_size = 1;
                 if (fn == MATMUL || fn == ADD || fn == SWIGLU || fn == GEGLU) { 
@@ -285,7 +285,7 @@ void MAC::runOneStep()
 #ifdef cNoC_MODE
             // In cNoC mode, the MAC units act like co-processors for global reductions.
             // They should not execute MatMul, Add, or SwiGLU operations, as those are performed in-transit on the routers.
-            if (fn == MATMUL || fn == ADD || fn == SWIGLU) {
+            if (fn == MATMUL || fn == ADD || fn == SWIGLU || fn == GEGLU) {
                 cout << "FATAL ERROR: The MAC node " << id << " does not support executing function " 
                      << fn << " in cNoC_MODE! This operation is performed in-transit on the routers." << endl;
                 outfeature = 0.0;
@@ -355,10 +355,14 @@ void MAC::runOneStep()
                 //packet_id++;
                 return;
             }
-            else if (fn >= MATMUL && fn <= ATTENTION)                                               // Operazioni Transformer
+            else if (fn >= MATMUL && fn <= GEGLU)                                               // Operazioni Transformer
             {
                 if (fn == MATMUL) {                                                                 // MatMul
                     for(int j=0; j < m_size; j++) { outfeature += infeature[j] * weight[j]; }
+
+                    #if USE_BIAS
+                        outfeature += weight[m_size];
+                    #endif
                 } 
                 else if (fn == LAYERNORM) {                                                         // LayerNorm
                     // infeature = [mean, var, x_i, gamma, beta]

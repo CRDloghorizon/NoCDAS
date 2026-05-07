@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM, AutoConfig
+from transformers import MistralConfig, MistralForCausalLM
 from pathlib import Path
 import numpy as np
 import torch
@@ -8,9 +8,9 @@ import gc
 BASE_DIR    = Path(__file__).resolve().parents[1]
 OUT_DIR     = BASE_DIR / "src" / "input"
 
-model_file  = OUT_DIR / "lm_transformer_qwen.txt"
-weight_file = OUT_DIR / "lm_weight_qwen.txt"
-input_file  = OUT_DIR / "lm_input_qwen.txt"
+model_file  = OUT_DIR / "lm_transformer_mistral.txt"
+weight_file = OUT_DIR / "lm_weight_mistral.txt"
+input_file  = OUT_DIR / "lm_input_mistral.txt"
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -65,32 +65,39 @@ def write_weights_int8(fw, tensor, bias_tensor=None, needs_bias_slot=False):
         fw.write(" ".join([f"{x:.6f}" for x in row]) + "\n")
 
 def main():
-    device = torch.device("cpu")
+    config = MistralConfig(
+        vocab_size=8192,
+        hidden_size=1536,
+        intermediate_size=4096,
+        num_hidden_layers=20,
+        num_attention_heads=16,
+        num_key_value_heads=8,
+        max_position_embeddings=4096,
+        rope_theta=10000.0,
+        sliding_window=4096,
+    )
     
-    config = AutoConfig.from_pretrained("Qwen/Qwen2.5-0.5B")
-
-    config.vocab_size = 8192
     apply_quantization = True
-    
-    # Hardware parameter for NoCDAS
     SIMULATION_SEQ_LEN = 64
 
-    model = AutoModelForCausalLM.from_config(config, dtype=torch.float32)
+    print("[INFO] Generating Mistral model...")
+    
+    model = MistralForCausalLM(config)
     model.eval()
 
-    print(f"[INFO] Number of parameters: {model.num_parameters():,}")
+    print(f"[INFO] Total number of generated parameters: {model.num_parameters():,}")
     
     VOCAB_SIZE = config.vocab_size
     D_MODEL = config.hidden_size
     NHEAD = config.num_attention_heads
-    NUM_KV_HEADS = getattr(config, 'num_key_value_heads', NHEAD) 
+    NUM_KV_HEADS = config.num_key_value_heads 
     DIM_FF = config.intermediate_size
 
     if apply_quantization is True:
-        print(f"[INFO] Applying INT8 Quantization.")
+        print(f"[INFO] Fake Quantization INT8.")
         write_method = write_weights_int8
     else:
-        print(f"[INFO] Applying pure FP32 export.")
+        print(f"[INFO] Export in FP32.")
         write_method = write_weights_fp32
 
     topo_file = open(model_file, "w")
@@ -104,14 +111,12 @@ def main():
         layer_counter += 1
         return curr_id
 
-    print("\n[INFO] Starting topological and weight files generation...")
-
     # Input and embedding
     write_node(f"Input {SIMULATION_SEQ_LEN} 1 1")
     res_src = write_node(f"Embedding {VOCAB_SIZE} {D_MODEL}")
     write_method(weight_file_open, model.model.embed_tokens.weight)
 
-    # Loop over transformer blocks (Qwen layers)
+    # Transformer blocks
     for i, layer in enumerate(model.model.layers): 
         topo_file.write(f"% --- Layer {i} ---\n") 
 
@@ -124,32 +129,20 @@ def main():
         fused_dim = D_MODEL + 2 * k_dim
         write_node(f"MatMul {D_MODEL} {fused_dim}") 
         
-        # Extract and concatenate Q, K, V Weights
         fused_weight = torch.cat([
             layer.self_attn.q_proj.weight, 
             layer.self_attn.k_proj.weight, 
             layer.self_attn.v_proj.weight
         ], dim=0)
         
-        # Extract and concatenate Q, K, V Biases (if used by the model)
-        if hasattr(layer.self_attn.q_proj, 'bias') and layer.self_attn.q_proj.bias is not None:
-            fused_bias = torch.cat([
-                layer.self_attn.q_proj.bias, 
-                layer.self_attn.k_proj.bias, 
-                layer.self_attn.v_proj.bias
-            ], dim=0)
-        else:
-            fused_bias = None
-
-        write_method(weight_file_open, fused_weight, bias_tensor=fused_bias, needs_bias_slot=True)
+        write_method(weight_file_open, fused_weight, bias_tensor=None, needs_bias_slot=True)
         
         # In-Transit Attention Node
         write_node(f"Attention {fused_dim} {D_MODEL} {k_dim} {NHEAD}")
 
         # Out Projection Attention (o_proj)
         write_node(f"MatMul {D_MODEL} {D_MODEL}")
-        out_bias = layer.self_attn.o_proj.bias if hasattr(layer.self_attn.o_proj, 'bias') else None
-        write_method(weight_file_open, layer.self_attn.o_proj.weight, bias_tensor=out_bias, needs_bias_slot=True)
+        write_method(weight_file_open, layer.self_attn.o_proj.weight, bias_tensor=None, needs_bias_slot=True)
 
         # First Residual Connection
         res_src = write_node(f"Add {D_MODEL} {res_src}")
@@ -164,35 +157,28 @@ def main():
             layer.mlp.gate_proj.weight, 
             layer.mlp.up_proj.weight
         ], dim=0)
-        
-        if hasattr(layer.mlp.gate_proj, 'bias') and layer.mlp.gate_proj.bias is not None:
-            gate_up_bias = torch.cat([layer.mlp.gate_proj.bias, layer.mlp.up_proj.bias], dim=0)
-        else:
-            gate_up_bias = None
 
-        write_method(weight_file_open, gate_up_weight, bias_tensor=gate_up_bias, needs_bias_slot=True)
+        write_method(weight_file_open, gate_up_weight, bias_tensor=None, needs_bias_slot=True)
         
         # SwiGLU Node
         write_node(f"SwiGLU {DIM_FF}")
         
         # Down Projection MLP (down_proj)
         write_node(f"MatMul {DIM_FF} {D_MODEL}")
-        down_bias = layer.mlp.down_proj.bias if hasattr(layer.mlp.down_proj, 'bias') else None
-        write_method(weight_file_open, layer.mlp.down_proj.weight, bias_tensor=down_bias, needs_bias_slot=True)
+        write_method(weight_file_open, layer.mlp.down_proj.weight, bias_tensor=None, needs_bias_slot=True)
 
         # Second Residual Connection
         res_src = write_node(f"Add {D_MODEL} {res_src}")
 
         gc.collect()
 
-    # Final output (LayerNorm and LM Head)
+    # Output
     topo_file.write(f"% --- Final Output ---\n")
     write_node(f"RMSNorm {D_MODEL}")
     write_method(weight_file_open, model.model.norm.weight)
     
     write_node(f"MatMul {D_MODEL} {VOCAB_SIZE}")
-    lm_head_bias = model.lm_head.bias if hasattr(model.lm_head, 'bias') else None
-    write_method(weight_file_open, model.lm_head.weight, bias_tensor=lm_head_bias, needs_bias_slot=True)
+    write_method(weight_file_open, model.lm_head.weight, bias_tensor=None, needs_bias_slot=True)
 
     with open(input_file, "w") as fi:
         base_pattern = [10, 250, 314, 400, 50] 

@@ -24,15 +24,19 @@
     #define QUANT_MULTIPLIER 1
 #endif
 
-#define KV_CACHE_SIZE (2048 * QUANT_MULTIPLIER)				// SRAM dimension in each MAC unit (number of elements)
-
-#define ROUTER_SRAM_LIMIT (1024 * QUANT_MULTIPLIER)
+#define KV_CACHE_SIZE (8192 * QUANT_MULTIPLIER)
 
 // MAC Local SRAM Limits (in number of floats, 2048 = 8 KB)
-#define MAC_WEIGHT_SRAM_LIMIT (2048 * QUANT_MULTIPLIER)
-#define MAC_INPUT_SRAM_LIMIT (2048 * QUANT_MULTIPLIER)
+#define MAC_WEIGHT_SRAM_LIMIT (1024 * QUANT_MULTIPLIER)
+#define MAC_INPUT_SRAM_LIMIT (1024 * QUANT_MULTIPLIER)
 
-#define MAX_CONTEXT_WINDOW (2048 * QUANT_MULTIPLIER)		// Attention Score Cache
+#define MAX_CONTEXT_WINDOW (512 * QUANT_MULTIPLIER)				// Attention Score Cache
+
+#ifdef cNoC_MODE
+	#define ROUTER_SRAM_LIMIT (16384 * QUANT_MULTIPLIER)
+#else
+	#define ROUTER_SRAM_LIMIT (256 * QUANT_MULTIPLIER)
+#endif
 
 #define NI_TX_FIFO_DEPTH (32 * QUANT_MULTIPLIER)   
 #define NI_RX_FIFO_DEPTH (32 * QUANT_MULTIPLIER)
@@ -54,7 +58,7 @@
 /******************************/
 // NoC Node configuration macros used in the manuscript
 // #define MemNode2  						// 2 MC cores (for 4*4 NoC)
-// #define MemNode8  						// 8 MC cores (for 8*8 NoC)
+#define MemNode8  						// 8 MC cores (for 8*8 NoC)
 // #define MemNode18  						// 18 MC cores (for 12*12 NoC)
 #define MemNode32  						// 32 MC cores (for 16*16 NoC)
 

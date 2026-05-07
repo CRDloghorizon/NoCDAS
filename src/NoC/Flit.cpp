@@ -78,17 +78,19 @@ void Flit::reset(int t_id, int t_type, int t_vnet, int t_vc, Packet* t_packet, f
     packet = t_packet;
     sched_time = t_cycles;
     packetid = t_pid;
-    current_payload_size = 0;
-    
-    // IMPORTANTE: clear() svuota i vettori ma NON libera la memoria allocata. 
-    // In questo modo evitiamo ri-allocazioni continue.
-    trace_node.clear(); 
+
+    trace_node.clear();
     trace_time.clear();
-    computed_routers.reset();
+
+    computed_routers.reset(); 
+
+    current_payload_size = 0;
+    global_data_offset = 0;
 
     if (packet != nullptr && (packet->message.type == 4 || packet->message.type == 5)) {
         int elements_per_flit = FLIT_LENGTH / DATA_BYTES;
         global_data_offset = id * elements_per_flit;
+
         if (global_data_offset >= 0) {
             int remaining_data = packet->message.data.size() - global_data_offset;
             current_payload_size = std::min(elements_per_flit, std::max(0, remaining_data));

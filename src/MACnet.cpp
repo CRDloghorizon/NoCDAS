@@ -156,7 +156,7 @@ void MACnet::create_input(){
         }
         st_w += w_ch;
     }
-    else if (this->cnnmodel->all_layer_type[c_layer]=='p' || this->cnnmodel->all_layer_type[c_layer]=='s' || this->cnnmodel->all_layer_type[c_layer]=='a' || this->cnnmodel->all_layer_type[c_layer]=='w' || this->cnnmodel->all_layer_type[c_layer]=='o')
+    else if (this->cnnmodel->all_layer_type[c_layer]=='p' || this->cnnmodel->all_layer_type[c_layer]=='s' || this->cnnmodel->all_layer_type[c_layer]=='a' || this->cnnmodel->all_layer_type[c_layer]=='w' || this->cnnmodel->all_layer_type[c_layer]=='o' || this->cnnmodel->all_layer_type[c_layer]=='g')
     {
         weight_table.clear();
     }
@@ -765,7 +765,7 @@ void MACnet::runOneStep()
                         
                         if (tmpPacket->message.compute_op == ADD) {
                             // Add operation is linear, it has been computed in-transit in the router
-                            this->output_table[0][out_idx] = tmpPacket->message.data[k * 2]; 
+                            this->output_table[0][out_idx] = tmpPacket->message.data[k * 2];
                         } 
                         else if (tmpPacket->message.compute_op == SWIGLU || tmpPacket->message.compute_op == GEGLU) {
                             // Non linear calculation at the terminal node (Terminal Node Concept)
@@ -913,7 +913,7 @@ void MACnet::runOneStep()
                     this->cnnmodel->all_layer_type[c_layer]=='s' || this->cnnmodel->all_layer_type[c_layer]=='a' || 
                     this->cnnmodel->all_layer_type[c_layer]=='e' || this->cnnmodel->all_layer_type[c_layer]=='r' || 
                     this->cnnmodel->all_layer_type[c_layer]=='w' || this->cnnmodel->all_layer_type[c_layer]=='o' || 
-                    this->cnnmodel->all_layer_type[c_layer]=='t')
+                    this->cnnmodel->all_layer_type[c_layer]=='t' || this->cnnmodel->all_layer_type[c_layer]=='g')
             {
                 if(tmpMAC->selfstatus == 2) 
                 {
@@ -1143,7 +1143,7 @@ void MACnet::runOneStep()
                      this->cnnmodel->all_layer_type[c_layer]=='s' || this->cnnmodel->all_layer_type[c_layer]=='a' || 
                      this->cnnmodel->all_layer_type[c_layer]=='e' || this->cnnmodel->all_layer_type[c_layer]=='r' || 
                      this->cnnmodel->all_layer_type[c_layer]=='w' || this->cnnmodel->all_layer_type[c_layer]=='o' || 
-                     this->cnnmodel->all_layer_type[c_layer]=='t'){
+                     this->cnnmodel->all_layer_type[c_layer]=='t' || this->cnnmodel->all_layer_type[c_layer]=='g'){
 #ifndef only3type
                 if(tmpMAC->selfstatus == 4) {
                     if(tmpMAC->send == 1) {

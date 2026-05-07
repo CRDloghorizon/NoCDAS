@@ -108,6 +108,9 @@ void Packet::reset(Message t_message, int router_num_x, int* NI_num) {
     current_path_index = 0;
     dest_convert(message.destination, router_num_x, NI_num);
     
+    send_out_time = 0;
+    in_net_time = 0;
+    
     int t_type = message.type; 
     int data_length = message.data_length;
     
@@ -123,8 +126,6 @@ void Packet::reset(Message t_message, int router_num_x, int* NI_num) {
     if (length % FLIT_LENGTH != 0) {
         length = ((length + FLIT_LENGTH - 1) / FLIT_LENGTH) * FLIT_LENGTH;
     }
-    send_out_time = 0;
-    in_net_time = 0;
 }
 
 

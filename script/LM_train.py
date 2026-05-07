@@ -8,33 +8,7 @@ import os
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[INFO] Device: {device.type.upper()}")
 
-# Toy Model -> 127.000 parameters.
-VOCAB_SIZE   = 20
-D_MODEL      = 64
-NHEAD        = 2
-NUM_KV_HEADS = 1   
-NUM_LAYERS   = 2
-DIM_FF       = 256
-SEQ_LEN      = 15
-BATCH_SIZE   = 8
-EPOCHS       = 100
-lr           = 0.005
-path_file = Path(__file__).parent.resolve() / "models" / "LM.pth"
-
-# # 1M parameters.
-# VOCAB_SIZE   = 1024
-# D_MODEL      = 128
-# NHEAD        = 4
-# NUM_KV_HEADS = 2
-# NUM_LAYERS   = 4
-# DIM_FF       = 384
-# SEQ_LEN      = 128
-# BATCH_SIZE   = 8
-# EPOCHS       = 100
-# lr           = 0.001
-# path_file = Path(__file__).parent.resolve() / "models" / "LM_1M.pth"
-
-# # 3.8B parameters
+# # 3.8B parameters.
 # VOCAB_SIZE   = 32000
 # D_MODEL      = 3072
 # NHEAD        = 24
@@ -47,6 +21,32 @@ path_file = Path(__file__).parent.resolve() / "models" / "LM.pth"
 # lr           = 0.0005
 # path_file = Path(__file__).parent.resolve() / "models" / "LM_3B.pth"
 # torch.set_default_dtype(torch.bfloat16)
+
+# # Toy Model -> 127.000 parameters.
+# VOCAB_SIZE   = 20
+# D_MODEL      = 64
+# NHEAD        = 2
+# NUM_KV_HEADS = 1   
+# NUM_LAYERS   = 2
+# DIM_FF       = 256
+# SEQ_LEN      = 15
+# BATCH_SIZE   = 8
+# EPOCHS       = 100
+# lr           = 0.005
+# path_file = Path(__file__).parent.resolve() / "models" / "LM.pth"
+
+# 1M parameters.
+VOCAB_SIZE   = 1024
+D_MODEL      = 128
+NHEAD        = 4
+NUM_KV_HEADS = 2
+NUM_LAYERS   = 4
+DIM_FF       = 384
+SEQ_LEN      = 128
+BATCH_SIZE   = 8
+EPOCHS       = 100
+lr           = 0.001
+path_file = Path(__file__).parent.resolve() / "models" / "LM_1M.pth"
 
 model = TransformerLM(
     vocab_size      = VOCAB_SIZE, 
@@ -62,13 +62,13 @@ model = TransformerLM(
 torch.set_default_dtype(torch.float32)
 
 if os.path.exists(path_file):
-    print(f"\n[INFO] Trovato il checkpoint: '{path_file}'.")
+    print(f"\n[INFO] Found the checkpoint: '{path_file}'.")
     checkpoint = torch.load(path_file, map_location=device, weights_only=False)
     
     model.load_state_dict(checkpoint['state_dict'])
 
 else:
-    print(f"\n[INFO] File '{path_file}' NON trovato, inizio l'addestramento.")
+    print(f"\n[INFO] File '{path_file}' NOT found, starting training.")
     
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()

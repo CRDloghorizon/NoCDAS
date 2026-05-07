@@ -108,12 +108,12 @@ def main():
         layer_counter += 1
         return curr_id
 
-    # input and embedding
+    # 1. INPUT E EMBEDDING
     write_node(f"Input {SEQ_LEN} 1 1")
     res_src = write_node(f"Embedding {VOCAB_SIZE} {D_MODEL}")
     write_method(weight_file_open, model.embedding.weight)
 
-    # transformer layers
+    # 2. TRANSFORMER BLOCKS
     for i, layer in enumerate(model.layers): 
         topo_file.write(f"% --- Layer {i} ---\n") 
 
@@ -172,7 +172,7 @@ def main():
 
         gc.collect()
 
-    # output
+    # 3. OUTPUT
     topo_file.write(f"% --- Final Output ---\n")
     write_node(f"RMSNorm {D_MODEL}")
     write_method(weight_file_open, model.final_norm.weight)
@@ -180,7 +180,7 @@ def main():
     write_node(f"MatMul {D_MODEL} {VOCAB_SIZE}")
     write_method(weight_file_open, model.fc_out.weight, bias_tensor=model.fc_out.bias, needs_bias_slot=True)
 
-    # input file
+    # 4. INPUT FILE
     with open(input_file, "w") as fi:
         base_pattern = [1, 2, 3, 4, 5]
         moltiplicatore = (SEQ_LEN // len(base_pattern)) + 1
