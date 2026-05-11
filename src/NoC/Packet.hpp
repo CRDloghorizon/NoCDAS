@@ -21,6 +21,7 @@ struct Message{
   int QoS = 0;
   int source_id;
   int signal_id;
+  int chunk_start_idx;
   
   std::vector<float> data;          // Contains inputs and partial sums
   int psum_offset = 0;              // Contains the start index of psum in 'data'.

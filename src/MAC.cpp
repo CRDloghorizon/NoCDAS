@@ -399,8 +399,10 @@ void MAC::runOneStep()
                     outfeature = weight[idx];
                 }
                 else if (fn == RMSNORM) {                                                           // RMSNorm
-                    // infeature contains [rms, x_i, gamma]
                     float rms   = infeature[0];
+                    if (rms < 1e-6f) {
+                        rms = 1e-6f;
+                    }
                     float x_i   = infeature[1];
                     float gamma = infeature[2];
                     outfeature = (x_i / rms) * gamma;
@@ -408,8 +410,14 @@ void MAC::runOneStep()
                 else if (fn == SWIGLU) {                                                            // SwiGLU
                     float gate = infeature[0];
                     float up   = infeature[1]; 
-                    
-                    float silu = gate * (1.0 / (1.0 + std::exp(-gate)));
+                    float silu;
+                    if (gate > 20.0f) {
+                        silu = gate;
+                    } else if (gate < -20.0f) {
+                        silu = 0.0f;
+                    } else {
+                        silu = gate * (1.0f / (1.0f + std::exp(-gate)));
+                    }
                     outfeature = silu * up;
                 }
                 else if (fn == GEGLU) {                                                       

@@ -107,6 +107,14 @@ public:
     
 	// Sorted path of routers that will perform in-transit computation
     std::deque<int> cnoc_compute_path; 
+
+	int total_tasks_in_layer;
+	int last_mapped_task_idx;
+	int current_chunk_idx;
+	int total_chunks;
+	bool tiling_active;
+	int chunk_start_task_idx;
+	int tasks_in_current_chunk;
     
 	// Mapping of weights to router for preparing the distribution phase
     void cNoC_mapping(int task_num);

@@ -22,6 +22,7 @@ For a more practical, hands-on guide covering simulation setup, workflows, and e
 *   Dual Execution Paradigms:
     *   *Baseline Mode:* Traditional Data-to-Processor execution (standard approach for CNNs and baseline execution).
     *   *cNoC Mode:* Highly optimized In-Transit Computation paradigm. Turns NoC routers into active processing units via Multi-way Function Units (MFUs) to maximize clock-cycle efficiency during LLM inference.
+*   Temporal Tiling (Chunking): Enables the simulation of massive LLM layers on resource-constrained hardware. The system automatically partitions computation into temporal "chunks" that fit within small router SRAMs, managing global write offsets and input re-injection latencies.
 *   Hardware-Aware Memory Modeling: Simulates local SRAM constraints, dedicated PE-level KV-Caches, and Router-level weights.
 *   Dynamic Quantization & Scaling: Features an `INT8_QUANTIZATION` toggle that employs a "Fake-Quantization" approach. It realistically scales effective SRAM capacity and reduces NoC payload traffic by 4x to simulate the physical footprint of 8-bit hardware accelerators, without compromising the underlying FP32 mathematical simulation.
 *   Advanced LLM Support: Implements Rolling KV-Cache logic for infinite-length sequence generation and in-network online softmax reduction.
@@ -45,9 +46,12 @@ The `input/` folder contains various workloads:
 The simulator's behavior and hardware specifications are centrally managed in `src/parameters.hpp`.
 
 *   Topology & NoC Nodes: Change NoC dimensions and memory node placement (e.g., `MemNode8`, `X_NUM`, `Y_NUM`).
+*   cNoC & Tiling: 
+    *   cNoC_MODE: Enable active NoC processing.
+    *   ROUTER_SRAM_LIMIT: Defines the physical SRAM available in each router. The simulator uses this to calculate the Temporal Tiling strategy.
 *   Workload Selection: Modify model file names directly in the header or pass them via command-line arguments.
-*   Hardware Optimizations: Toggle macros like `cNoC_MODE`, `ENABLE_KV_CACHE`, and `ROUTER_SRAM_LIMIT` to enable active NoC processing for LLMs.
 *   Quantization Scaling: Use `INT8_QUANTIZATION` to dynamically scale physical memory constraints and simulate the bandwidth savings of INT8 hardware.
+*   Precision & Bias: Toggle `USE_BIAS` to match modern bias-less architectures (LLaMA/Mistral) or legacy models.
 *   Logging: Enable the `Countlatency` macro for detailed output logs and performance metrics.
 
 ## Input Model Format
