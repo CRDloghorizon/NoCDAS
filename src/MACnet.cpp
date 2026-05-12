@@ -415,48 +415,81 @@ void MACnet::inject_cNoC_traffic() {
     NI* mem_ni = this->vcNetwork->NI_list[mem_id];
 
     if (cnoc_phase == 1) {
-        int w_idx_path = 0;
+        if (o_fn == ATTENTION) {
+            int fused_dim = this->cnnmodel->all_layer_size[c_layer][0];
+            int q_dim = this->cnnmodel->all_layer_size[c_layer][1];
+            int k_dim = this->cnnmodel->all_layer_size[c_layer][2];
 
-        for (int router_id : cnoc_compute_path) {
-            Message dist_msg = Message(); 
-            dist_msg.source_id = mem_id;
-            dist_msg.NI_id = mem_id;
-            dist_msg.mac_id = mem_id;
-            dist_msg.destination = router_id; 
-            dist_msg.type = 4; 
-            dist_msg.compute_op = o_fn;
-            dist_msg.out_cycle = cycles; 
-            dist_msg.signal_id = packet_id;
+            for (int y = 0; y < this->in_y; y++) {
+                Message dist_msg = Message(); 
+                dist_msg.source_id = mem_id;
+                dist_msg.NI_id = mem_id;
+                dist_msg.mac_id = mem_id;
+                
+                int target_router = cnoc_compute_path[y % cnoc_compute_path.size()];
+                dist_msg.destination = target_router; 
+                
+                dist_msg.type = 4; 
+                dist_msg.compute_op = o_fn;
+                dist_msg.out_cycle = cycles; 
+                dist_msg.signal_id = packet_id + y;
 
-            auto router = this->vcNetwork->router_list[router_id];
-            if (!this->weight_table.empty()) {
-                for (int task_idx : router->assigned_tasks) {
-                    int w_idx = task_idx % this->weight_table.size();
-                    dist_msg.data.insert(dist_msg.data.end(), this->weight_table[w_idx].begin(), this->weight_table[w_idx].end());
-                }
-            } else {
-                dist_msg.data.push_back(1.0f); 
+                int base_idx = y * fused_dim;
+                
+                dist_msg.data.insert(dist_msg.data.end(), this->input_table[0].begin() + base_idx + q_dim, this->input_table[0].begin() + base_idx + q_dim + k_dim);
+                                     
+                dist_msg.data.insert(dist_msg.data.end(), this->input_table[0].begin() + base_idx + q_dim + k_dim, this->input_table[0].begin() + base_idx + fused_dim);
+                
+                dist_msg.data_length = dist_msg.data.size();
+                
+                Packet* p = Packet::allocate(std::move(dist_msg), X_NUM, mem_ni->NI_num);
+
+                int memory_latency = std::ceil(dist_msg.data_length * MEM_read_delay) + CACHE_DELAY;
+                p->send_out_time = cycles + memory_latency; 
+                
+                p->in_net_time = cycles;
+                mem_ni->packetBuffer_list[p->vnet]->enqueue(p);
             }
-            
-            dist_msg.data_length = dist_msg.data.size();
-            
-            Packet* p = Packet::allocate(std::move(dist_msg), X_NUM, mem_ni->NI_num);
-            // p->send_out_time = cycles;
-            // p->in_net_time = cycles;
-            // mem_ni->packetBuffer_list[p->vnet]->enqueue(p);
+        } else {
+            int w_idx_path = 0;
 
-            int memory_latency = std::ceil(dist_msg.data_length * MEM_read_delay) + CACHE_DELAY;
-            p->send_out_time = cycles + memory_latency; 
-            
-            p->in_net_time = cycles;
-            mem_ni->packetBuffer_list[p->vnet]->enqueue(p);
+            for (int router_id : cnoc_compute_path) {
+                Message dist_msg = Message(); 
+                dist_msg.source_id = mem_id;
+                dist_msg.NI_id = mem_id;
+                dist_msg.mac_id = mem_id;
+                dist_msg.destination = router_id; 
+                dist_msg.type = 4; 
+                dist_msg.compute_op = o_fn;
+                dist_msg.out_cycle = cycles; 
+                dist_msg.signal_id = packet_id;
 
-            w_idx_path++;
+                auto router = this->vcNetwork->router_list[router_id];
+                if (!this->weight_table.empty()) {
+                    for (int task_idx : router->assigned_tasks) {
+                        int w_idx = task_idx % this->weight_table.size();
+                        dist_msg.data.insert(dist_msg.data.end(), this->weight_table[w_idx].begin(), this->weight_table[w_idx].end());
+                    }
+                } else {
+                    dist_msg.data.push_back(1.0f); 
+                }
+                
+                dist_msg.data_length = dist_msg.data.size();
+                
+                Packet* p = Packet::allocate(std::move(dist_msg), X_NUM, mem_ni->NI_num);
+
+                int memory_latency = std::ceil(dist_msg.data_length * MEM_read_delay) + CACHE_DELAY;
+                p->send_out_time = cycles + memory_latency; 
+                
+                p->in_net_time = cycles;
+                mem_ni->packetBuffer_list[p->vnet]->enqueue(p);
+
+                w_idx_path++;
+            }
         }
         cnoc_phase = 2; 
     }
     else if (cnoc_phase == 2) {
-        // Send a packet cNoC for EACH token in the sequence (in_y)
         for (int y = 0; y < this->in_y; y++) {
             Message comp_msg = Message();
             comp_msg.source_id = mem_id;
@@ -468,7 +501,6 @@ void MACnet::inject_cNoC_traffic() {
             comp_msg.out_cycle = cycles; 
             comp_msg.signal_id = packet_id + y;
             
-            // Use the sequence_id to let the memory know which row to save the result in.
             comp_msg.sequence_id = y; 
             
             comp_msg.chunk_start_idx = this->chunk_start_task_idx;
@@ -476,13 +508,11 @@ void MACnet::inject_cNoC_traffic() {
             comp_msg.routing_path.assign(cnoc_compute_path.begin(), cnoc_compute_path.end());
             comp_msg.routing_path.push_back(mem_id);
             
-            // start and end indices for token 'y'
             int token_start = y * this->in_x;
             int token_end   = (y + 1) * this->in_x;
             
-            // Select insertion mode based on operation
             comp_msg.data.reserve(this->in_x * 2 + this->tasks_in_current_chunk); 
-            if (o_fn == 18 || o_fn == 21|| o_fn == 24) { // 18 = ADD, 21 = SWIGLU, 24 = GeGLU
+            if (o_fn == 18 || o_fn == 21|| o_fn == 24) { 
                 bool has_residual = false;
                 std::vector<float> secondary_data;
 
@@ -497,21 +527,17 @@ void MACnet::inject_cNoC_traffic() {
                 for (int k = 0; k < this->tasks_in_current_chunk; k++) {
                     int base_idx = y * this->in_x + this->chunk_start_task_idx + k;
                     
-                    // First operand (x for ADD, gate for SWIGLU)
                     comp_msg.data.push_back(this->input_table[0][base_idx]); 
                     
-                    // Second operand
                     if (o_fn == 18 && has_residual) {
                         comp_msg.data.push_back(secondary_data[base_idx]); 
                     } else if (o_fn == 21 || o_fn == 24) {
-                        // For SWIGLU and GeGLU, the "up" projection is offset by o_x
                         comp_msg.data.push_back(this->input_table[0][base_idx + o_x]); 
                     } else {
-                        comp_msg.data.push_back(0.0f); // Safety fallback
+                        comp_msg.data.push_back(0.0f); 
                     }
                 }
             } else {
-                // Normal operations with 1 operand per token (e.g., MATMUL)
                 if (this->input_table.size() > 0 && this->input_table[0].size() >= token_end) {
                     comp_msg.data.reserve(token_end - token_start + this->tasks_in_current_chunk);
                     comp_msg.data.assign(
@@ -539,16 +565,12 @@ void MACnet::inject_cNoC_traffic() {
 #endif
                 
             } else {
-                // For ADD, SWIGLU, etc., we perform pure IN-PLACE execution
                 comp_msg.psum_offset = 0;
             }
             
             comp_msg.data_length = comp_msg.data.size();
             
             Packet* p = Packet::allocate(std::move(comp_msg), X_NUM, mem_ni->NI_num);
-            // p->send_out_time = cycles;
-            // p->in_net_time = cycles;
-            // mem_ni->packetBuffer_list[p->vnet]->enqueue(p);
 
             int memory_latency = std::ceil(comp_msg.data_length * MEM_read_delay) + CACHE_DELAY;
             p->send_out_time = cycles + memory_latency; 
@@ -597,8 +619,7 @@ void MACnet::checkStatus()
 
 #ifdef cNoC_MODE
         char l_type = this->cnnmodel->all_layer_type[c_layer];
-        if (l_type == 'm' || l_type == 'a' || l_type == 'w'|| l_type == 'g' || l_type == 't')
-        {
+        if (l_type == 'm' || l_type == 'a' || l_type == 'w'|| l_type == 'g' || l_type == 't') {
             this->cNoC_mapping(total_tasks_in_layer);
         } else {
             this->mapping(task_num); 
@@ -608,20 +629,16 @@ void MACnet::checkStatus()
         this->mapping(task_num);
         this->tiling_active = false;
 #endif
-        for(int i=0; i<macNum; i++)
-        {
-            if(mapping_table[i].size() == 0)
-            {
+        for(int i=0; i<macNum; i++) {
+            if(mapping_table[i].size() == 0) {
                 this->MAC_list[i]->selfstatus = 5;
 #ifdef only3type
                 this->MAC_list[i]->send = 3;
 #endif
-            }
-            else
-            {
+            } else {
                 this->MAC_list[i]->routing_table.assign(mapping_table[i].begin(),mapping_table[i].end());
             }
-            // Reset della cache hardware del singolo PE
+
             this->MAC_list[i]->local_sram_usage = 0;
             this->MAC_list[i]->kv_cache.clear(); 
             this->MAC_list[i]->cached_score_row = -1;
@@ -682,8 +699,7 @@ void MACnet::checkStatus()
     }
 
     #ifdef newpooling
-        if(this->cnnmodel->all_layer_type[c_layer]=='c' && this->cnnmodel->all_layer_type[c_layer+1]=='p')
-        {
+        if(this->cnnmodel->all_layer_type[c_layer]=='c' && this->cnnmodel->all_layer_type[c_layer+1]=='p') {
             in_ch = no_ch; in_x = no_x; in_y = no_y; c_layer++;
         }
     #endif
@@ -693,17 +709,14 @@ void MACnet::checkStatus()
     }
 
     c_layer++; 
-    if(c_layer == n_layer)
-    {
+    if(c_layer == n_layer) {
         cout << "All finished! at cycle " << cycles << endl;
         output_table = layer_outputs_history[c_layer - 1];
         Layer_latency.push_back(cycles);
         readyflag = 2;
         packet_id = packet_id + o_ch*o_x*o_y;
         return;
-    }
-    else
-    {
+    } else {
         cout << "Layer finished " << (c_layer-1) << " at cycle " << cycles << endl;
         Layer_latency.push_back(cycles);
         packet_id = packet_id + o_ch*o_x*o_y;
@@ -713,47 +726,41 @@ void MACnet::checkStatus()
         this->vcNetwork->router_list[ir]->rr_port = 0;
         this->vcNetwork->NI_list[ir]->rr_buffer = 0;
         this->vcNetwork->NI_list[ir]->rr_priority_record = 0;
-        for (int ip=0; ip<5;ip++)
-        {
+        for (int ip=0; ip<5;ip++) {
             this->vcNetwork->router_list[ir]->in_port_list[ip]->rr_record = 0;
             this->vcNetwork->router_list[ir]->in_port_list[ip]->rr_priority_record = 0;
         }
     }
 
     layer_info = cnnmodel->all_layer_size[c_layer];
-    if(cnnmodel->all_layer_type[c_layer]=='c')  
-    {
+    if(cnnmodel->all_layer_type[c_layer]=='c') {
         w_x = layer_info[1]; w_y = layer_info[2]; o_ch = layer_info[3]; 
         w_ch = o_ch * in_ch; o_fn = layer_info[5]; pad = layer_info[6]; stride = layer_info[7]; 
         assert((in_ch == layer_info[4]) && "Input channel not correct!");
         o_x = (in_x + 2*pad - w_x) / stride + 1;
         o_y = (in_y + 2*pad - w_y) / stride + 1;
     }
-    else if(cnnmodel->all_layer_type[c_layer]=='f')  
-    {
+    else if(cnnmodel->all_layer_type[c_layer]=='f') {
         in_x = layer_info[0]; in_ch = 1; in_y = 1; w_x = layer_info[0]; 
         w_y = 1; o_ch = 1; w_ch = layer_info[1]; o_fn = layer_info[2] + 4; pad = 0; stride = 1;
         assert((in_x == w_x) && "Input channel not correct!");
         o_x = layer_info[1]; o_y = 1;
-        if(this->output_table.size() > 1) 
-        {
+        if(this->output_table.size() > 1) {
             vector<float> temp_out_table;
-            for(int z = 0; z < this->output_table.size(); z++)
-            {
+            for(int z = 0; z < this->output_table.size(); z++) {
                 temp_out_table.insert(temp_out_table.end(), this->output_table[z].begin(), this->output_table[z].end());
             }
             this->output_table.resize(1);
             this->output_table[0].assign(temp_out_table.begin(), temp_out_table.end());
         }
-    }
-    else if(cnnmodel->all_layer_type[c_layer]=='p') 
-    {
+    } else if(cnnmodel->all_layer_type[c_layer]=='p') {
         w_x = layer_info[1]; w_y = layer_info[2]; o_ch = layer_info[3]; 
         pad = layer_info[4]; stride = layer_info[5]; w_ch = 0; o_fn = 8; 
         if (layer_info[6] == 2) {o_fn = 12;} 
         assert((in_ch == o_ch) && "Input channel not correct!");
         o_x = (in_x + 2*pad - w_x) / stride + 1; o_y = (in_y + 2*pad - w_y) / stride + 1;
     }
+
     else if(cnnmodel->all_layer_type[c_layer]=='e') { in_x = layer_info[0]; in_ch = 1; w_x = layer_info[1]; w_y = 1; o_ch = 1; w_ch = layer_info[0]; o_fn = EMBEDDING; o_x = w_x; }
     else if(cnnmodel->all_layer_type[c_layer]=='m') { in_x = layer_info[0]; in_ch = 1; w_x = layer_info[0]; w_y = 1; o_ch = 1; w_ch = layer_info[1]; o_fn = MATMUL; o_x = layer_info[1]; o_y = in_y; }
     else if(cnnmodel->all_layer_type[c_layer]=='l') { in_x = layer_info[0]; in_ch = 1; w_x = layer_info[0]; w_y = 1; o_ch = 1; w_ch = 2; o_fn = LAYERNORM; o_x = in_x; o_y = in_y; }
