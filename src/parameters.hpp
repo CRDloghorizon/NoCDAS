@@ -1,5 +1,3 @@
-// conda activate nocdas_env && cd NoCDAS && ./run.sh >> exp_4_qwen_baseline.txt
-
 /*
  * parameters.hpp
  * Configuration file for NoCDAS
@@ -8,11 +6,11 @@
 #ifndef PARAMETERS_HPP_
 #define PARAMETERS_HPP_
 
-#define DEFAULT_NNMODEL_FILENAME    "./src/input/lm_transformer_qwen.txt"
-#define DEFAULT_NNWEIGHT_FILENAME   "./src/input/lm_weight_qwen.txt"
-#define DEFAULT_NNINPUT_FILENAME    "./src/input/lm_input_qwen.txt"
+#define DEFAULT_NNMODEL_FILENAME    "./src/input/lm_transformer.txt"
+#define DEFAULT_NNWEIGHT_FILENAME   "./src/input/lm_weight.txt"
+#define DEFAULT_NNINPUT_FILENAME    "./src/input/lm_input.txt"
 
-// #define cNoC_MODE
+#define cNoC_MODE
 
 #define USE_BIAS 0      // 1: Enable in-transit Bias initialization (cNoC Way 3). 0: Bias-less models (e.g., LLaMA)
 

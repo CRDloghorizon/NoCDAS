@@ -597,7 +597,7 @@ void MACnet::checkStatus()
 
 #ifdef cNoC_MODE
         char l_type = this->cnnmodel->all_layer_type[c_layer];
-        if (l_type == 'm' || l_type == 'a' || l_type == 'w'|| l_type == 'g')
+        if (l_type == 'm' || l_type == 'a' || l_type == 'w'|| l_type == 'g' || l_type == 't')
         {
             this->cNoC_mapping(total_tasks_in_layer);
         } else {

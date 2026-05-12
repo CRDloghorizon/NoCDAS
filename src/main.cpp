@@ -166,7 +166,7 @@ int main(int arg_num, char *arg_vet[]) {
     }
     cout << endl;
 
-    std::string filename = "output_baseline_qwen.txt";
+    std::string filename = "output_baseline.txt";
 
 #ifndef cNoC_MODE
     // Baseline execution

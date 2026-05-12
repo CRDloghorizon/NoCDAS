@@ -62,13 +62,13 @@ model = TransformerLM(
 torch.set_default_dtype(torch.float32)
 
 if os.path.exists(path_file):
-    print(f"\n[INFO] Found the checkpoint: '{path_file}'.")
+    print(f"\n[INFO] Trovato il checkpoint: '{path_file}'.")
     checkpoint = torch.load(path_file, map_location=device, weights_only=False)
     
     model.load_state_dict(checkpoint['state_dict'])
 
 else:
-    print(f"\n[INFO] File '{path_file}' NOT found, starting training.")
+    print(f"\n[INFO] File '{path_file}' NON trovato, inizio l'addestramento.")
     
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
