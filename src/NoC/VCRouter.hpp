@@ -27,16 +27,16 @@ public:
   // Struct that models the hardware state registers of a VC for cNoC
   struct ComputeVCState {
       int compute_op;
-      double running_max;
-      double running_sum;
+      std::vector<double> running_max;
+      std::vector<double> running_sum;
       bool is_active;
 
-      ComputeVCState() : compute_op(-1), running_max(-1e9), running_sum(0.0), is_active(false) {}
+      ComputeVCState() : compute_op(-1), running_max({-1e9}), running_sum({0.0}), is_active(false) {}
       
       void reset() {
           compute_op = -1;
-          running_max = -1e9;
-          running_sum = 0.0;
+          running_max.clear();
+          running_sum.clear();
           is_active = false;
       }
   };
@@ -99,6 +99,8 @@ public:
   int port_utilization_innet;
 
   int rr_out_port;
+
+  void clearWeights();
 
   ~VCRouter ();
 };

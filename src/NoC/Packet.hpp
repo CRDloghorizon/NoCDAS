@@ -21,14 +21,14 @@ struct Message{
   int QoS = 0;
   int source_id;
   int signal_id;
-  int chunk_start_idx;
   
   std::vector<float> data;          // Contains inputs and partial sums
   int psum_offset = 0;              // Contains the start index of psum in 'data'.
   int k_dim = 0;
-
-  double running_max = -1e9;        // Tracks the maximum score (m)
-  double running_sum = 0.0;         // Tracks the sum of exponentials (l)
+  
+  int n_heads = 1;
+  std::vector<double> running_max;        // Tracks the maximum score (m)
+  std::vector<double> running_sum;        // Tracks the sum of exponentials (l)
 
   int compute_op;                   // type of operation (es. MATMUL, ADD)
   
@@ -36,6 +36,9 @@ struct Message{
   
   //for pooling
   int penable;                       // 0 no, 1 max, 2 avg
+
+  int chunk_offset = 0;
+  int chunk_row_size = 0;
 };
 
 class Packet

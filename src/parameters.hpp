@@ -12,8 +12,6 @@
 
 #define cNoC_MODE
 
-#define USE_BIAS 0      // 1: Enable in-transit Bias initialization (cNoC Way 3). 0: Bias-less models (e.g., LLaMA)
-
 #define ENABLE_KV_CACHE 1         		// 1 turn on local SRAM (KV-Cache), 0 disable
 
 #define INT8_QUANTIZATION 1				// 1 turn on local quantization, 0 disable
@@ -26,28 +24,22 @@
     #define QUANT_MULTIPLIER 1
 #endif
 
-// #define KV_CACHE_SIZE (8192 * QUANT_MULTIPLIER)
-#define KV_CACHE_SIZE (4096 * QUANT_MULTIPLIER)
+#define KV_CACHE_SIZE (8192 * QUANT_MULTIPLIER)
 
-// MAC Local SRAM Limits (in number of floats, 1024 = 4 KB)
+// MAC Local SRAM Limits (in number of floats, 2048 = 8 KB)
 #define MAC_WEIGHT_SRAM_LIMIT (1024 * QUANT_MULTIPLIER)
 #define MAC_INPUT_SRAM_LIMIT (1024 * QUANT_MULTIPLIER)
 
 #define MAX_CONTEXT_WINDOW (512 * QUANT_MULTIPLIER)				// Attention Score Cache
 
 #ifdef cNoC_MODE
-	// 4096 floats * 4 byte/float = 16384 byte -> 16 kB
-    #define ROUTER_SRAM_LIMIT (4096 * QUANT_MULTIPLIER)
-
-	// #define ROUTER_SRAM_LIMIT (2048 * QUANT_MULTIPLIER)
+	#define ROUTER_SRAM_LIMIT (64 * QUANT_MULTIPLIER)
 #else
-	#define ROUTER_SRAM_LIMIT (1 * QUANT_MULTIPLIER)
+	#define ROUTER_SRAM_LIMIT (256 * QUANT_MULTIPLIER)
 #endif
 
-#define NI_TX_FIFO_DEPTH (32 * QUANT_MULTIPLIER)
+#define NI_TX_FIFO_DEPTH (32 * QUANT_MULTIPLIER)   
 #define NI_RX_FIFO_DEPTH (32 * QUANT_MULTIPLIER)
-
-#define MemNode32  						// 32 MC cores (for 16*16 NoC)
 
 /******************************/
 // Here we define evaluation modes. DNN model file is always required. In FE mode, weight and input files are required.
@@ -66,9 +58,9 @@
 /******************************/
 // NoC Node configuration macros used in the manuscript
 // #define MemNode2  						// 2 MC cores (for 4*4 NoC)
-// #define MemNode8  						// 8 MC cores (for 8*8 NoC)
+#define MemNode8  						// 8 MC cores (for 8*8 NoC)
 // #define MemNode18  						// 18 MC cores (for 12*12 NoC)
-// #define MemNode32  						// 32 MC cores (for 16*16 NoC)
+#define MemNode32  						// 32 MC cores (for 16*16 NoC)
 
 //#define MemNode5  						// 5 MC cores (for 6*6 NoC)
 //#define MemNode13  						// 13 MC cores (for 10*10 NoC)
@@ -164,6 +156,9 @@
 #define DISTRIBUTION_NUM 20				// threshold for counting end-to end packet delay is good (<20 is good)
 
 #define PRINT 100000000 				// define the prining steps in clock cycle
+
+// Neural Network Architectural Parameters
+#define USE_BIAS 0      // 1: Enable in-transit Bias initialization (cNoC Way 3). 0: Bias-less models (e.g., LLaMA)
 
 // Hardware SFU Latency Parameters (in Clock Cycles)
 #define MAC_LATENCY 1

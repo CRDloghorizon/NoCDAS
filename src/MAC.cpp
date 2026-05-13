@@ -399,10 +399,8 @@ void MAC::runOneStep()
                     outfeature = weight[idx];
                 }
                 else if (fn == RMSNORM) {                                                           // RMSNorm
+                    // infeature contains [rms, x_i, gamma]
                     float rms   = infeature[0];
-                    if (rms < 1e-6f) {
-                        rms = 1e-6f;
-                    }
                     float x_i   = infeature[1];
                     float gamma = infeature[2];
                     outfeature = (x_i / rms) * gamma;
@@ -410,14 +408,8 @@ void MAC::runOneStep()
                 else if (fn == SWIGLU) {                                                            // SwiGLU
                     float gate = infeature[0];
                     float up   = infeature[1]; 
-                    float silu;
-                    if (gate > 20.0f) {
-                        silu = gate;
-                    } else if (gate < -20.0f) {
-                        silu = 0.0f;
-                    } else {
-                        silu = gate * (1.0f / (1.0f + std::exp(-gate)));
-                    }
+                    
+                    float silu = gate * (1.0 / (1.0 + std::exp(-gate)));
                     outfeature = silu * up;
                 }
                 else if (fn == GEGLU) {                                                       
@@ -459,7 +451,7 @@ void MAC::runOneStep()
                     int target_idx = inbuffer[6];
                     
                     int head_dim = q_dim / n_heads;
-                    int k_head_dim = k_dim / n_heads; 
+                    int k_head_dim = head_dim;
                     int my_head = target_idx / head_dim;
                     int target_d = target_idx % head_dim;
                     
@@ -534,13 +526,20 @@ void MAC::runOneStep()
                     }
 
                     // calculating score (O(N)) or cache recovery (O(1)) ---
-                    int window_start = 0;
-                    if (current_row >= MAX_CONTEXT_WINDOW) {
-                        window_start = current_row - MAX_CONTEXT_WINDOW + 1;
+                    int SINK_TOKENS = 4; // Deve coincidere con il numero di Sinks del router
+                    std::vector<int> valid_tokens;
+
+                    for (int t = 0; t <= current_row; t++) {
+                        if (current_row >= MAX_CONTEXT_WINDOW) {
+                            int max_recent_tokens = MAX_CONTEXT_WINDOW - SINK_TOKENS;
+                            // Salta i token intermedi (simula l'eviction del Ring Buffer nel router)
+                            if (t >= SINK_TOKENS && t < current_row - max_recent_tokens + 1) {
+                                continue; 
+                            }
+                        }
+                        valid_tokens.push_back(t);
                     }
-                    
-                    // Number of token taken into account (Max: MAX_CONTEXT_WINDOW)
-                    int effective_history = current_row - window_start + 1;
+                    int effective_history = valid_tokens.size();
                     int calctime = 0;
                     int kv_head_id = my_head * (k_dim / q_dim);
 
@@ -569,7 +568,9 @@ void MAC::runOneStep()
                         // Dot Product (Q * K^T) for the current window
                         float max_score = -1e9;
 
-                        for (int t = window_start; t <= current_row; t++) { 
+                        for (int i = 0; i < effective_history; i++) { 
+                            int t = valid_tokens[i];
+                            
                             float dot_product = 0.0;
                             int k_start = (t * kv_size) + (kv_head_id * k_head_dim);
                             
@@ -577,11 +578,10 @@ void MAC::runOneStep()
                                 dot_product += q_rotated[d] * this->kv_cache[k_start + d];
                             }
                             
-                            int score_idx = t - window_start; 
-                            final_scores[score_idx] = dot_product / std::sqrt((float)head_dim);
+                            final_scores[i] = dot_product / std::sqrt((float)head_dim);
                             
-                            if (final_scores[score_idx] > max_score) { 
-                                max_score = final_scores[score_idx]; 
+                            if (final_scores[i] > max_score) { 
+                                max_score = final_scores[i]; 
                             }
                         }
                         
@@ -617,10 +617,10 @@ void MAC::runOneStep()
 
                     // value projection
                     outfeature = 0.0; 
-                    for (int t = window_start; t <= current_row; t++) {
+                    for (int i = 0; i < effective_history; i++) {
+                        int t = valid_tokens[i];
                         int v_start = (t * kv_size) + k_dim + (kv_head_id * k_head_dim); 
-                        int score_idx = t - window_start;
-                        outfeature += final_scores[score_idx] * this->kv_cache[v_start + target_d];
+                        outfeature += final_scores[i] * this->kv_cache[v_start + target_d];
                     }
                     
                     // NoC injection

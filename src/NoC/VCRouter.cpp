@@ -104,6 +104,14 @@ int VCRouter::getRoute(Flit* t_flit){
 }
 
 void VCRouter::processDistributionPacket(Flit* t_flit) {
+    int flat_router_id = id[0] * X_NUM + id[1]; 
+
+    if (t_flit->computed_routers.test(flat_router_id)) {
+        return;
+    }
+    
+    t_flit->computed_routers.set(flat_router_id);
+
     int payload_size = t_flit->get_payload_size();
     int opcode = t_flit->packet->message.compute_op;
 
@@ -178,9 +186,12 @@ void VCRouter::processDistributionPacket(Flit* t_flit) {
         if (t_flit->type == 1 || t_flit->type == 10) {
             kv_token_count++;
         }
-    }
-    else {
-        // Standard weights loading (e.g., MatMul, Conv)
+    } else {
+        if (t_flit->id == 0) { 
+             this->clearWeights();
+        }
+        
+        int payload_size = t_flit->get_payload_size();
         for (int i = 0; i < payload_size; i++) {
             storeWeight(t_flit->get_data(i));
         }
@@ -213,8 +224,10 @@ void VCRouter::computeInTransit(Flit* t_flit, int port_idx) {
         
         if (!t_flit->packet->message.routing_path.empty() && 
             t_flit->packet->message.routing_path.front() == this_router_id) {
-            vc_state.running_max = -1e9;
-            vc_state.running_sum = 0.0;
+            
+            int heads = (t_flit->packet->message.n_heads > 0) ? t_flit->packet->message.n_heads : 1;
+            vc_state.running_max.assign(heads, -1e9);
+            vc_state.running_sum.assign(heads, 0.0);
         } else {
             vc_state.running_max = t_flit->packet->message.running_max;
             vc_state.running_sum = t_flit->packet->message.running_sum;
@@ -236,24 +249,28 @@ void VCRouter::computeInTransit(Flit* t_flit, int port_idx) {
                 // (matrix-vector multiplication for the assigned tasks). 
                 // Omitting the 'break' here allows MATMUL to cascade directly into 
                 // the LINEAR block, avoiding unnecessary code duplication.
-            case 0:  // LINEAR
+            case 0:                                         // LINEAR
             {
                 int num_tasks = assigned_tasks.size();
                 if (num_tasks == 0) break;
                 
-                int weight_row_size = local_weights.size() / num_tasks; 
-
+                int chunk_offset = t_flit->packet->message.chunk_offset;
+                int chunk_row_size = t_flit->packet->message.chunk_row_size;
+                
                 for (int t = 0; t < num_tasks; t++) {
                     int task_id = assigned_tasks[t];
                     float local_accum = 0.0f;
                     
                     for (int i = 0; i < payload_size; ++i) {
                         int input_idx = t_flit->global_data_offset + i;
+                        
                         if (input_idx >= t_flit->packet->message.psum_offset) continue; 
                         
-                        int w_offset = (t * weight_row_size) + input_idx; 
-                        if (w_offset < local_weights.size()) {
-                            local_accum += t_flit->get_data(i) * local_weights[w_offset];
+                        if (input_idx >= chunk_offset && input_idx < chunk_offset + chunk_row_size) {
+                            int w_offset = (t * chunk_row_size) + (input_idx - chunk_offset); 
+                            if (w_offset < local_weights.size()) {
+                                local_accum += t_flit->get_data(i) * local_weights[w_offset];
+                            }
                         }
                     }
                     
@@ -306,90 +323,131 @@ void VCRouter::computeInTransit(Flit* t_flit, int port_idx) {
             }
             case ATTENTION:
             {
-                /* =====================================================================
-                *     ARCHITECTURAL TRADE-OFF: Distributed Online Softmax in-transit
-                *  =====================================================================
-                * Why does ATTENTION remain in the intermediate router (unlike SWIGLU)?
-                *
-                * 1. Nature of the operation: SWIGLU is "point-wise" (1 input -> 1 output).
-                *    Attention is a spatial "reduction" over an entire sequence (KV-Cache).
-                * 2. Latency Cost vs. Area Cost: If we were to delegate the computation
-                *    of the exponential (std::exp) to the Terminal Node, each router would 
-                *    have to transmit the entire raw logit vector across the network.
-                *    This would cause immense data traffic, saturating the NoC and
-                *    hitting head-on the "Memory Wall" typical of Transformer architectures.
-                * 3. Solution: We accept the area overhead (silicon) to insert a
-                *    small Special Function Unit (SFU) dedicated to exponentials in the
-                *    intermediate routers. This allows accumulating the denominator
-                *    (running_sum) in-transit, trading a small amount of chip area for
-                *    a massive saving in bandwidth.
-                * ===================================================================== */
-
-                // Attention is a reduction over the entire Q vector.
-                // Softmax math breaks if computed partially per-flit.
-                // Solution: Compute it only when the TAIL flit arrives, preserving cycle accuracy.
-
-                if (t_flit->type != 1 && t_flit->type != 10) break;
+                if (t_flit->type != 0 && t_flit->type != 10) break;
                 if (local_kv_cache.empty()) break;
-
-                // int q_dim = t_flit->packet->message.data.size() - t_flit->packet->message.psum_offset;
-                // assert(q_dim > 0 && "FATAL: q_dim is 0, cannot divide by zero.");
-                // int num_local_tokens = local_kv_cache.size() / (q_dim * 2);
 
                 int q_dim = t_flit->packet->message.data.size() - t_flit->packet->message.psum_offset;
                 int k_dim = (t_flit->packet->message.k_dim > 0) ? t_flit->packet->message.k_dim : q_dim;
-                int num_local_tokens = (int)local_kv_cache.size() / (k_dim * 2);
+                int n_heads = t_flit->packet->message.n_heads;
+                if (n_heads <= 0) n_heads = 1;
                 
-                std::vector<double> local_scores(num_local_tokens, 0.0);
-                double local_max = -1e9;
+                int head_dim = q_dim / n_heads;
+                int total_kv_heads = std::max(1, k_dim / head_dim);
+                
+                int N = t_flit->packet->message.routing_path.size() - 1;
+                int router_idx = -1;
+                for (int i = 0; i < N; i++) {
+                    if (t_flit->packet->message.routing_path[i] == this_router_id) {
+                        router_idx = i;
+                        break;
+                    }
+                }
+                
+                if (router_idx == -1) break;
 
-                // Compute Dot Product (Q * K_local^T)
-                for (int t = 0; t < num_local_tokens; t++) {
-                    double dot_product = 0.0;
-                    int k_offset = t * (k_dim * 2);
-                    
-                    for (int d = 0; d < k_dim; d++) {
-                        dot_product += (double)t_flit->packet->message.data[d] * (double)local_kv_cache[k_offset + d];
-                    }
+                int current_query_y = t_flit->packet->message.sequence_id;
+                bool is_last_reduction_node = (router_idx == N - 1);
 
-                    if (k_dim <= 0) {
-                        std::cerr << "FATAL ERROR: k_dim is 0, cannot divide by zero in Attention!" << std::endl;
-                        exit(EXIT_FAILURE);
+                const int SINK_TOKENS = 4;
+                int floats_per_token = k_dim * 2;
+                int max_tokens_in_sram = ROUTER_SRAM_LIMIT / floats_per_token;
+                
+                int current_local_count = 0;
+                for (int y = 0; y <= current_query_y; y++) {
+                    if (y % N == router_idx) current_local_count++;
+                }
+
+                std::vector<int> valid_physical_slots;
+                int local_seq_id = 0;
+                
+                for (int y = 0; y <= current_query_y; y++) {
+                    if (y % N == router_idx) {
+                        bool retained = true;
+                        
+                        if (current_local_count > max_tokens_in_sram) {
+                            int max_recent = max_tokens_in_sram - SINK_TOKENS;
+                            if (local_seq_id >= SINK_TOKENS && local_seq_id < current_local_count - max_recent) {
+                                retained = false; 
+                            }
+                        }
+
+                        if (retained) {
+                            int physical_slot;
+                            if (local_seq_id < max_tokens_in_sram) {
+                                physical_slot = local_seq_id;
+                            } else {
+                                if (max_tokens_in_sram > SINK_TOKENS) {
+                                    physical_slot = SINK_TOKENS + ((local_seq_id - SINK_TOKENS) % (max_tokens_in_sram - SINK_TOKENS));
+                                } else {
+                                    physical_slot = std::max(0, max_tokens_in_sram - 1);
+                                }
+                            }
+                            valid_physical_slots.push_back(physical_slot);
+                        }
+                        local_seq_id++;
                     }
-                    dot_product /= std::sqrt((double)k_dim);
-                    local_scores[t] = dot_product;
-                    if (dot_product > local_max) local_max = dot_product;
                 }
                 
-                // Online Softmax Math
-                double m_old = vc_state.running_max;
-                double l_old = vc_state.running_sum;
-                
-                double m_new = std::max(m_old, local_max);
-                double old_scale = std::exp(m_old - m_new);
-                double local_sum_exp = 0.0;
-                
-                for (int t = 0; t < num_local_tokens; t++) {
-                    local_scores[t] = std::exp(local_scores[t] - m_new);
-                    local_sum_exp += local_scores[t];
-                }
-                double l_new = (l_old * old_scale) + local_sum_exp;
-                
-                // Accumulate V Projection
-                for (int d = 0; d < q_dim; d++) {
-                    double current_o = (double)t_flit->packet->message.data[t_flit->packet->message.psum_offset + d] * old_scale;
-                    double local_v_contribution = 0.0;
+                int effective_tokens = valid_physical_slots.size();
+                if (effective_tokens == 0) break;
+
+                for (int h = 0; h < n_heads; h++) {
+                    int kv_h = (total_kv_heads == 1) ? 0 : (h * total_kv_heads / n_heads); 
                     
-                    for (int t = 0; t < num_local_tokens; t++) {
-                        int v_offset = t * (k_dim * 2) + k_dim;
-                        local_v_contribution += local_scores[t] * (double)local_kv_cache[v_offset + d];
+                    std::vector<double> local_scores(effective_tokens, 0.0);
+                    double local_max = -1e9;
+
+                    for (int i = 0; i < effective_tokens; i++) {
+                        int physical_slot = valid_physical_slots[i];
+                        double dot_product = 0.0;
+                        int k_offset = physical_slot * (k_dim * 2) + (kv_h * head_dim);
+                        
+                        for (int d = 0; d < head_dim; d++) {
+                            dot_product += (double)t_flit->packet->message.data[(h * head_dim) + d] * (double)local_kv_cache[k_offset + d];
+                        }
+
+                        dot_product /= std::sqrt((double)head_dim);
+                        local_scores[i] = dot_product;
+                        if (dot_product > local_max) local_max = dot_product;
                     }
-                    t_flit->packet->message.data[t_flit->packet->message.psum_offset + d] = (float)(current_o + local_v_contribution);
+                    
+                    double m_old = vc_state.running_max[h];
+                    double l_old = vc_state.running_sum[h];
+                    
+                    double m_new = std::max(m_old, local_max);
+                    double old_scale = std::exp(m_old - m_new);
+                    double local_sum_exp = 0.0;
+                    
+                    for (int i = 0; i < effective_tokens; i++) {
+                        local_scores[i] = std::exp(local_scores[i] - m_new);
+                        local_sum_exp += local_scores[i];
+                    }
+                    double l_new = (l_old * old_scale) + local_sum_exp;
+                    
+                    for (int d = 0; d < head_dim; d++) {
+                        int target_idx = t_flit->packet->message.psum_offset + (h * head_dim) + d;
+                        
+                        double current_o = (double)t_flit->packet->message.data[target_idx] * old_scale;
+                        
+                        double local_v_contribution = 0.0;
+                        for (int i = 0; i < effective_tokens; i++) {
+                            int physical_slot = valid_physical_slots[i];
+                            int v_offset = physical_slot * (k_dim * 2) + k_dim + (kv_h * head_dim);
+                            local_v_contribution += local_scores[i] * (double)local_kv_cache[v_offset + d];
+                        }
+                        
+                        double final_o = current_o + local_v_contribution;
+                        
+                        if (is_last_reduction_node && l_new > 0.0) {
+                            final_o /= l_new;
+                        }
+                        
+                        t_flit->packet->message.data[target_idx] = (float)final_o;
+                    }
+                    
+                    vc_state.running_max[h] = m_new;
+                    vc_state.running_sum[h] = l_new;
                 }
-                
-                // Save the new local hardware state
-                vc_state.running_max = m_new;
-                vc_state.running_sum = l_new;
                 
                 t_flit->packet->message.running_max = vc_state.running_max;
                 t_flit->packet->message.running_sum = vc_state.running_sum;
@@ -431,6 +489,29 @@ void VCRouter::outPortDequeue(){
                 }
             }
             
+            if (flit->packet->message.type == 5 && flit->packet->message.compute_op == ATTENTION) {
+                int this_router_id = id[0] * X_NUM + id[1];
+                int N = flit->packet->message.routing_path.size() - 1;
+                int router_idx = -1;
+                for (int r = 0; r < N; r++) {
+                    if (flit->packet->message.routing_path[r] == this_router_id) {
+                        router_idx = r; break;
+                    }
+                }
+                if (router_idx != -1) {
+                    int current_query_y = flit->packet->message.sequence_id;
+                    int expected_local_tokens = 0;
+                    for (int y = 0; y <= current_query_y; y++) {
+                        if ((y % N) == router_idx) expected_local_tokens++;
+                    }
+                    
+                    if (kv_token_count < expected_local_tokens) {
+                        mfu_occupied_until = cycles + 2;
+                        continue;
+                    }
+                }
+            }
+
             flit = out_port_list[i]->buffer_list[0]->dequeue();
 
             int compute_delay = 0;
@@ -592,6 +673,12 @@ void VCRouter::clearSRAM() {
 
     kv_token_count = 0;
     assigned_tasks.clear();
+}
+
+void VCRouter::clearWeights() {
+    int weight_size = local_weights.size();
+    local_weights.clear();
+    current_sram_usage -= weight_size; 
 }
 
 VCRouter::~VCRouter ()

@@ -103,18 +103,14 @@ public:
 	vector<int> Layer_latency;
     
     // 0 = Idle, 1 = Weights distribution, 2 = In-Transit computation, 3 = wait for results
-    int cnoc_phase; 
+    int cnoc_phase;
     
 	// Sorted path of routers that will perform in-transit computation
-    std::deque<int> cnoc_compute_path; 
+    std::deque<int> cnoc_compute_path;
 
-	int total_tasks_in_layer;
-	int last_mapped_task_idx;
-	int current_chunk_idx;
-	int total_chunks;
-	bool tiling_active;
-	int chunk_start_task_idx;
-	int tasks_in_current_chunk;
+	int cnoc_current_chunk = 0;
+    int cnoc_total_chunks = 1;
+    int cnoc_chunk_size = 0;
     
 	// Mapping of weights to router for preparing the distribution phase
     void cNoC_mapping(int task_num);
