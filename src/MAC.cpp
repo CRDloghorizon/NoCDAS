@@ -541,7 +541,7 @@ void MAC::runOneStep()
                     }
                     int effective_history = valid_tokens.size();
                     int calctime = 0;
-                    int kv_head_id = my_head * (k_dim / q_dim);
+                    int kv_head_id = my_head * total_kv_heads / n_heads;
 
                     // Checking the local cache (based on the window, not the entire history)
                     bool scores_hit = (this->cached_score_row == current_row && this->cached_score_head == my_head);
