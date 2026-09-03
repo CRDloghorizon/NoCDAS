@@ -275,6 +275,9 @@ void MAC::runOneStep()
                 }
             }
 
+            assert(infeature.size() <= MAC_INPUT_SRAM_LIMIT && "Input feature size exceeds MAC input SRAM limit");
+            assert(weight.size() <= MAC_WEIGHT_SRAM_LIMIT && "Weight size exceeds MAC weight SRAM limit");
+
             outfeature = 0.0;
             selfstatus = 3;
             pecycle = cycles;
