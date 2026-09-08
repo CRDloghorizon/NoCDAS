@@ -119,7 +119,7 @@
 	//NI size
 	#define X_NUM 16
 	#define Y_NUM 16
-	#define TOT_NUM 256ls
+	#define TOT_NUM 256
 
 #elif defined MemNode5
 	#define PE_X_NUM 6

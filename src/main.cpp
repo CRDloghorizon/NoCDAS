@@ -67,6 +67,10 @@ void parseCmdLine(int arg_num, char *arg_vet[])
 int main(int arg_num, char *arg_vet[]) {
 
 	cout << "Initialize" << endl;
+#ifdef cNoC_MODE
+	cout << "NOTE: Running in cNoC_MODE" << endl;
+#endif
+
 	parseCmdLine(arg_num, arg_vet);
 
 	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
