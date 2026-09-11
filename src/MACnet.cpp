@@ -1080,57 +1080,48 @@ void MACnet::runOneStep()
                         tmpMAC->inbuffer.push_back(this->input_table[0][tmpy*in_x + tmpx]);     
                         tmpMAC->inbuffer.push_back(this->input_table[0][tmpy*in_x + pair_idx]); 
                     }
-                    else if (o_fn == ATTENTION) { 
+                    else if (o_fn == ATTENTION) {
                         int fused_dim = this->cnnmodel->all_layer_size[c_layer][0];
-                        int q_dim =     this->cnnmodel->all_layer_size[c_layer][1];
-                        int k_dim =     this->cnnmodel->all_layer_size[c_layer][2];
-                        int n_heads =   this->cnnmodel->all_layer_size[c_layer][3];
-                        
-                        tmpMAC->inbuffer.push_back(o_fn);
-                        tmpMAC->inbuffer.push_back(fused_dim);
-                        tmpMAC->inbuffer.push_back(q_dim);
-                        tmpMAC->inbuffer.push_back(k_dim);
-                        tmpMAC->inbuffer.push_back(n_heads);
-                        tmpMAC->inbuffer.push_back(tmpy); 
-                        tmpMAC->inbuffer.push_back(tmpx); 
-                        int limit = tmpy + 1; 
-                        tmpMAC->inbuffer.insert(tmpMAC->inbuffer.end(), this->input_table[0].begin(), this->input_table[0].begin() + limit * fused_dim); 
+                        int q_dim = this->cnnmodel->all_layer_size[c_layer][1];
+                        int k_dim = this->cnnmodel->all_layer_size[c_layer][2];
+                        int n_heads = this->cnnmodel->all_layer_size[c_layer][3];
+                        assert(n_heads > 0 && q_dim > 0 && q_dim % n_heads == 0);
+                        int head_dim = q_dim / n_heads;
+                        assert(k_dim > 0 && k_dim % head_dim == 0);
+                        int total_kv_heads = k_dim / head_dim;
+                        assert(n_heads % total_kv_heads == 0);
+                        int query_head = tmpx / head_dim;
+                        int kv_head_id = query_head * total_kv_heads / n_heads;
+
+                        // A cold cache needs the full head history. Otherwise send
+                        // only missing tokens, or just the query on a full hit.
+                        int kv_start_token = 0;
+#if ENABLE_KV_CACHE
+                        if (tmpMAC->cached_layer_id == c_layer && tmpMAC->cached_kv_head_id == kv_head_id) {
+                            kv_start_token = tmpMAC->cached_through_token + 1;
+                        }
+#endif
+                        assert(kv_start_token <= tmpy + 1);
+                        int kv_token_count = tmpy + 1 - kv_start_token;
+                        tmpMAC->inbuffer = {static_cast<float>(o_fn), static_cast<float>(q_dim),
+                            static_cast<float>(k_dim), static_cast<float>(n_heads), static_cast<float>(tmpy),
+                            static_cast<float>(tmpx), static_cast<float>(kv_head_id),
+                            static_cast<float>(kv_start_token), static_cast<float>(kv_token_count)};
+
+                        int q_offset = tmpy * fused_dim + query_head * head_dim;
+                        tmpMAC->inbuffer.insert(tmpMAC->inbuffer.end(),
+                            input_table[0].begin() + q_offset, input_table[0].begin() + q_offset + head_dim);
+                        for (int t = kv_start_token; t <= tmpy; t++) {
+                            int k_offset = t * fused_dim + q_dim + kv_head_id * head_dim;
+                            int v_offset = k_offset + k_dim;
+                            tmpMAC->inbuffer.insert(tmpMAC->inbuffer.end(),
+                                input_table[0].begin() + k_offset, input_table[0].begin() + k_offset + head_dim);
+                            tmpMAC->inbuffer.insert(tmpMAC->inbuffer.end(),
+                                input_table[0].begin() + v_offset, input_table[0].begin() + v_offset + head_dim);
+                        }
                     }
 
                     int payload_size = tmpMAC->inbuffer.size();
-#if ENABLE_KV_CACHE == 1
-                    if (o_fn == ATTENTION) { 
-                        int fused_dim = this->cnnmodel->all_layer_size[c_layer][0];
-                        int k_dim = this->cnnmodel->all_layer_size[c_layer][2];
-                        int kv_size_per_token = k_dim * 2; 
-                        int tokens_in_cache = tmpMAC->local_sram_usage / kv_size_per_token;
-                        bool is_autoregressive = (tmpy > 0);
-                        
-                        if (is_autoregressive && tokens_in_cache >= tmpy) {
-                            int header_size = 7; 
-                            payload_size = header_size + fused_dim; 
-                            tmpMAC->inbuffer.clear();
-                            tmpMAC->inbuffer.push_back(o_fn);
-                            tmpMAC->inbuffer.push_back(fused_dim);
-                            tmpMAC->inbuffer.push_back(this->cnnmodel->all_layer_size[c_layer][1]); 
-                            tmpMAC->inbuffer.push_back(k_dim);
-                            tmpMAC->inbuffer.push_back(this->cnnmodel->all_layer_size[c_layer][3]); 
-                            tmpMAC->inbuffer.push_back(tmpy);
-                            tmpMAC->inbuffer.push_back(tmpx);
-                            tmpMAC->inbuffer.insert(tmpMAC->inbuffer.end(), this->input_table[0].begin() + tmpy * fused_dim, this->input_table[0].begin() + (tmpy + 1) * fused_dim);
-                            int expected_sram = (tmpy + 1) * kv_size_per_token;
-                            if (tmpMAC->local_sram_usage < expected_sram) {
-                                if (expected_sram <= KV_CACHE_SIZE) tmpMAC->local_sram_usage = expected_sram;
-                                else tmpMAC->local_sram_usage = KV_CACHE_SIZE; 
-                            }
-                        } else {
-                            payload_size = tmpMAC->inbuffer.size();
-                            int required_sram = (tmpy + 1) * kv_size_per_token;
-                            if (required_sram <= KV_CACHE_SIZE) tmpMAC->local_sram_usage = required_sram;
-                            else tmpMAC->local_sram_usage = KV_CACHE_SIZE; 
-                        }
-                    }
-#endif
                     MAC_list[mem_id]->pecycle = cycles + ceil(payload_size * MEM_read_delay) + CACHE_DELAY;
                     MAC_list[mem_id]->inject(1, src, payload_size, o_fn, vcNetwork->NI_list[mem_id], pid, src_mac);
                 }

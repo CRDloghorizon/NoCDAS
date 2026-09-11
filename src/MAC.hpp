@@ -104,6 +104,11 @@ class MAC
 	int cached_score_row;
 	int cached_score_head;
 
+    // The PE retains only the KV head needed by its current attention task.
+    int cached_kv_head_id = -1;
+    int cached_through_token = -1;
+    int cached_layer_id = -1;
+
 	// for new pooling
 	int npoolflag;
 	int n_tmpch;

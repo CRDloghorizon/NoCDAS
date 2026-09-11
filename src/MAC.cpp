@@ -270,10 +270,13 @@ void MAC::runOneStep()
                 } else if (fn == ROPE) {
                     infeature.assign(inbuffer.begin() + 4, inbuffer.begin() + 6);
                 } else if (fn == ATTENTION) {                                       // Attention Hardware (Fused)
-                    m_size = inbuffer[1];
-                    infeature.assign(inbuffer.begin() + 7, inbuffer.end()); 
+                    m_size = inbuffer[1] / inbuffer[3]; // query head dimension
+                    infeature.assign(inbuffer.begin() + 9, inbuffer.begin() + 9 + m_size);
                 }
             }
+
+            assert(infeature.size() <= MAC_INPUT_SRAM_LIMIT && "Input feature size exceeds MAC input SRAM limit");
+            assert(weight.size() <= MAC_WEIGHT_SRAM_LIMIT && "Weight size exceeds MAC weight SRAM limit");
 
             outfeature = 0.0;
             selfstatus = 3;
@@ -443,87 +446,67 @@ void MAC::runOneStep()
                 }
                 else if (fn == ATTENTION)                                                           // Attention (Hardware Fused Attention Layer with RoPE and Score Caching)
                 {
-                    int fused_dim = inbuffer[1];
-                    int q_dim = inbuffer[2];
-                    int k_dim = inbuffer[3];
-                    int n_heads = inbuffer[4];
-                    int current_row = inbuffer[5];
-                    int target_idx = inbuffer[6];
-                    
+                    // Header: op, q_dim, k_dim, n_heads, row, target_idx,
+                    //         kv_head_id, kv_start_token, kv_token_count.
+                    // Payload: query head, followed by [K head, V head] per token.
+                    int q_dim = inbuffer[1];
+                    int k_dim = inbuffer[2];
+                    int n_heads = inbuffer[3];
+                    int current_row = inbuffer[4];
+                    int target_idx = inbuffer[5];
+                    int kv_head_id = inbuffer[6];
+                    int kv_start_token = inbuffer[7];
+                    int kv_token_count = inbuffer[8];
+
                     int head_dim = q_dim / n_heads;
                     int k_head_dim = head_dim;
                     int my_head = target_idx / head_dim;
                     int target_d = target_idx % head_dim;
-                    
-                    int n_tokens_in_buffer = infeature.size() / fused_dim;
-                    #if ENABLE_KV_CACHE
-                        bool is_cache_hit = (n_tokens_in_buffer == 1 && current_row > 0);
-                    #else
-                        bool is_cache_hit = false;
-                    #endif
-
-                    int q_offset = 0;
-                    int k_offset = q_dim;
-                    int v_offset = q_dim + k_dim;
-                    int kv_size = k_dim * 2;
-                    int total_kv_heads = k_dim / k_head_dim;
+                    int kv_size = k_head_dim * 2;
                     int k_half_dim = k_head_dim / 2;
                     int half_dim = head_dim / 2;
+                    assert(kv_head_id == my_head * (k_dim / k_head_dim) / n_heads);
 
-                    int kv_size_per_token = k_dim * 2;
-                    int expected_cache_size = (current_row + 1) * kv_size_per_token;
-
-                    // We put the data in the cache ONLY if the cache doesn't already have the data for this row.
-                    if (this->kv_cache.size() < expected_cache_size) {
-                        
-                        if (!is_cache_hit || this->kv_cache.size() == 0) {
-                            // Cache miss or prefill: Reconstruct the local cache by reading the entire history from the NoC.
-                            this->kv_cache.clear();
-                            std::vector<float> token_k_rotated(k_dim, 0.0);
-                            for (int t = 0; t <= current_row; t++) {
-                                int t_offset = t * fused_dim;
-                                std::fill(token_k_rotated.begin(), token_k_rotated.end(), 0.0f);
-
-                                // RoPE
-                                for (int h = 0; h < total_kv_heads; h++) {
-                                    for (int d = 0; d < k_half_dim; d++) {
-                                        float freq = 1.0 / std::pow(10000.0, (float)(2 * d) / k_head_dim);
-                                        float theta = t * freq;
-                                        float cos_val = std::cos(theta);
-                                        float sin_val = std::sin(theta);
-
-                                        float k1 = infeature[t_offset + k_offset + (h * k_head_dim) + d];
-                                        float k2 = infeature[t_offset + k_offset + (h * k_head_dim) + d + k_half_dim];
-
-                                        token_k_rotated[(h * k_head_dim) + d]              = k1 * cos_val - k2 * sin_val;
-                                        token_k_rotated[(h * k_head_dim) + d + k_half_dim] = k2 * cos_val + k1 * sin_val;
-                                    }
-                                }
-                                // Insert of rotated K and original V into the cache
-                                this->kv_cache.insert(this->kv_cache.end(), token_k_rotated.begin(), token_k_rotated.end());
-                                this->kv_cache.insert(this->kv_cache.end(), infeature.begin() + t_offset + v_offset, infeature.begin() + t_offset + v_offset + k_dim);
-                            }
-                        } else {
-                            // Hit: infeature has only the current token, rotate it and append to the cache.
-                            std::vector<float> token_k_rotated(k_dim, 0.0);
-                            for (int h = 0; h < total_kv_heads; h++) {
-                                for (int d = 0; d < k_half_dim; d++) {
-                                    float freq = 1.0 / std::pow(10000.0, (float)(2 * d) / k_head_dim);
-                                    float theta = current_row * freq;
-                                    float cos_val = std::cos(theta);
-                                    float sin_val = std::sin(theta);
-
-                                    float k1 = infeature[k_offset + (h * k_head_dim) + d];
-                                    float k2 = infeature[k_offset + (h * k_head_dim) + d + k_half_dim];
-
-                                    token_k_rotated[(h * k_head_dim) + d]              = k1 * cos_val - k2 * sin_val;
-                                    token_k_rotated[(h * k_head_dim) + d + k_half_dim] = k2 * cos_val + k1 * sin_val;
-                                }
-                            }
-                            this->kv_cache.insert(this->kv_cache.end(), token_k_rotated.begin(), token_k_rotated.end());
-                            this->kv_cache.insert(this->kv_cache.end(), infeature.begin() + v_offset, infeature.begin() + v_offset + k_dim);
-                        }
+                    if (cached_layer_id != net->c_layer) {
+                        cached_score_row = -1;
+                        cached_score_head = -1;
                     }
+                    if (cached_layer_id != net->c_layer || cached_kv_head_id != kv_head_id) {
+                        kv_cache.clear();
+                        cached_through_token = -1;
+                        cached_layer_id = net->c_layer;
+                        cached_kv_head_id = kv_head_id;
+                    }
+
+                    int expected_cache_size = (current_row + 1) * kv_size;
+                    assert(expected_cache_size <= KV_CACHE_SIZE && "Head-local KV cache overflow");
+                    if (kv_token_count > 0) {
+                        if (kv_start_token == 0) {
+                            kv_cache.clear();
+                            cached_through_token = -1;
+                        }
+                        assert(kv_start_token == cached_through_token + 1);
+                        for (int t = kv_start_token; t < kv_start_token + kv_token_count; t++) {
+                            int t_offset = 9 + head_dim + (t - kv_start_token) * kv_size;
+                            std::vector<float> token_k_rotated(k_head_dim, 0.0);
+                            for (int d = 0; d < k_half_dim; d++) {
+                                float freq = 1.0 / std::pow(10000.0, (float)(2 * d) / k_head_dim);
+                                float theta = t * freq;
+                                float cos_val = std::cos(theta);
+                                float sin_val = std::sin(theta);
+
+                                float k1 = inbuffer[t_offset + d];
+                                float k2 = inbuffer[t_offset + d + k_half_dim];
+                                token_k_rotated[d] = k1 * cos_val - k2 * sin_val;
+                                token_k_rotated[d + k_half_dim] = k2 * cos_val + k1 * sin_val;
+                            }
+                            kv_cache.insert(kv_cache.end(), token_k_rotated.begin(), token_k_rotated.end());
+                            kv_cache.insert(kv_cache.end(), inbuffer.begin() + t_offset + k_head_dim,
+                                            inbuffer.begin() + t_offset + kv_size);
+                        }
+                        cached_through_token = kv_start_token + kv_token_count - 1;
+                    }
+                    assert(kv_cache.size() == expected_cache_size && "Head-local KV cache size mismatch");
 
                     // calculating score (O(N)) or cache recovery (O(1)) ---
                     int SINK_TOKENS = 4; // Deve coincidere con il numero di Sinks del router
@@ -541,7 +524,6 @@ void MAC::runOneStep()
                     }
                     int effective_history = valid_tokens.size();
                     int calctime = 0;
-                    int kv_head_id = my_head * (k_dim / q_dim);
 
                     // Checking the local cache (based on the window, not the entire history)
                     bool scores_hit = (this->cached_score_row == current_row && this->cached_score_head == my_head);
@@ -550,7 +532,6 @@ void MAC::runOneStep()
                     if (!scores_hit || this->cached_attention_scores.size() != effective_history) {                        
                         // RoPE for the Query
                         std::vector<float> q_rotated(head_dim, 0.0);
-                        int current_token_offset = is_cache_hit ? 0 : (current_row * fused_dim);
 
                         for (int d = 0; d < half_dim; d++) {
                             float freq = 1.0 / std::pow(10000.0, (float)(2 * d) / head_dim);
@@ -558,8 +539,8 @@ void MAC::runOneStep()
                             float cos_val = std::cos(theta);
                             float sin_val = std::sin(theta);
 
-                            float q1 = infeature[current_token_offset + q_offset + (my_head * head_dim) + d];
-                            float q2 = infeature[current_token_offset + q_offset + (my_head * head_dim) + d + half_dim];
+                            float q1 = infeature[d];
+                            float q2 = infeature[d + half_dim];
 
                             q_rotated[d]            = q1 * cos_val - q2 * sin_val;
                             q_rotated[d + half_dim] = q2 * cos_val + q1 * sin_val;
@@ -572,7 +553,7 @@ void MAC::runOneStep()
                             int t = valid_tokens[i];
                             
                             float dot_product = 0.0;
-                            int k_start = (t * kv_size) + (kv_head_id * k_head_dim);
+                            int k_start = t * kv_size;
                             
                             for (int d = 0; d < k_head_dim; d++) {
                                 dot_product += q_rotated[d] * this->kv_cache[k_start + d];
@@ -619,7 +600,7 @@ void MAC::runOneStep()
                     outfeature = 0.0; 
                     for (int i = 0; i < effective_history; i++) {
                         int t = valid_tokens[i];
-                        int v_start = (t * kv_size) + k_dim + (kv_head_id * k_head_dim); 
+                        int v_start = (t * kv_size) + k_head_dim;
                         outfeature += final_scores[i] * this->kv_cache[v_start + target_d];
                     }
                     

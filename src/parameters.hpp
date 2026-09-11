@@ -10,7 +10,7 @@
 #define DEFAULT_NNWEIGHT_FILENAME   "./src/input/lm_weight.txt"
 #define DEFAULT_NNINPUT_FILENAME    "./src/input/lm_input.txt"
 
-#define cNoC_MODE
+// #define cNoC_MODE
 
 #define ENABLE_KV_CACHE 1         		// 1 turn on local SRAM (KV-Cache), 0 disable
 
@@ -18,24 +18,27 @@
 
 #if INT8_QUANTIZATION
     #define DATA_BYTES 1
+	#define ELEMENT_PER_1KB 1024
     #define QUANT_MULTIPLIER 4
 #else
     #define DATA_BYTES 4
+	#define ELEMENT_PER_1KB 256
     #define QUANT_MULTIPLIER 1
 #endif
 
 #define KV_CACHE_SIZE (8192 * QUANT_MULTIPLIER)
 
 // MAC Local SRAM Limits (in number of floats, 2048 = 8 KB)
-#define MAC_WEIGHT_SRAM_LIMIT (1024 * QUANT_MULTIPLIER)
-#define MAC_INPUT_SRAM_LIMIT (1024 * QUANT_MULTIPLIER)
+// The comment below assume quantization is enabled
+#define MAC_WEIGHT_SRAM_LIMIT (64 * ELEMENT_PER_1KB)		// 64KiB weight SRAM
+#define MAC_INPUT_SRAM_LIMIT (64 * ELEMENT_PER_1KB)			// 64KiB input SRAM
 
 #define MAX_CONTEXT_WINDOW (512 * QUANT_MULTIPLIER)				// Attention Score Cache
 
 #ifdef cNoC_MODE
-	#define ROUTER_SRAM_LIMIT (64 * QUANT_MULTIPLIER)
+	#define ROUTER_SRAM_LIMIT (16 * ELEMENT_PER_1KB)			// 16KiB cRouter SRAM
 #else
-	#define ROUTER_SRAM_LIMIT (256 * QUANT_MULTIPLIER)
+	#define ROUTER_SRAM_LIMIT (16 * ELEMENT_PER_1KB)			// 16KiB cRouter SRAM
 #endif
 
 #define NI_TX_FIFO_DEPTH (32 * QUANT_MULTIPLIER)   
@@ -58,7 +61,7 @@
 /******************************/
 // NoC Node configuration macros used in the manuscript
 // #define MemNode2  						// 2 MC cores (for 4*4 NoC)
-#define MemNode8  						// 8 MC cores (for 8*8 NoC)
+// #define MemNode8  						// 8 MC cores (for 8*8 NoC)
 // #define MemNode18  						// 18 MC cores (for 12*12 NoC)
 #define MemNode32  						// 32 MC cores (for 16*16 NoC)
 
@@ -117,6 +120,7 @@
 	#define X_NUM 16
 	#define Y_NUM 16
 	#define TOT_NUM 256
+
 #elif defined MemNode5
 	#define PE_X_NUM 6
 	#define PE_Y_NUM 6
